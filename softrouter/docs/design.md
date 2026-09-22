@@ -1,6 +1,6 @@
 # 设计与边界
 
-Air Gateway 将 macOS 已建立的上游 Wi-Fi 连接共享给一个下游路由器 WAN IPv4 地址。macOS 管理 Wi-Fi、DHCP、企业 802.1X 与认证凭据；下游路由器管理客户端接入、LAN 地址及其自身 NAT。
+SoftRouter 将 macOS 已建立的上游 Wi-Fi 连接共享给一个下游路由器 WAN IPv4 地址。macOS 管理 Wi-Fi、DHCP、企业 802.1X 与认证凭据；下游路由器管理客户端接入、LAN 地址及其自身 NAT。
 
 ## 进程与资源顺序
 

@@ -1,6 +1,6 @@
 # Security
 
-This project modifies privileged macOS networking and is an experimental preview. Supported behavior and test limitations are listed in air-gateway/docs/compatibility.md.
+This project modifies privileged macOS networking and is an experimental preview. Supported behavior and test limitations are listed in softrouter/docs/compatibility.md.
 
 Do not put credentials, private keys, router tokens, subscriptions, raw network preferences or private recovery directories in public issues. If the repository enables GitHub private vulnerability reporting, use its Security tab. Otherwise, ask the maintainer for a private reporting channel without publishing exploit details or secrets.
 

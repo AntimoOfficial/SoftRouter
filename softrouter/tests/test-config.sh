@@ -3,7 +3,7 @@ set -eu
 set -o pipefail
 BASE=$(cd "$(dirname "$0")/.." && pwd)
 . "$BASE/config.sh"
-TMP=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/air-gateway-config-test.XXXXXXXX")
+TMP=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/softrouter-config-test.XXXXXXXX")
 trap 'rm -rf "$TMP"' EXIT
 passed=0
 accept() { (load_config "$1") || { printf 'Expected valid: %s\n' "$1" >&2; exit 1; }; passed=$((passed+1)); }
@@ -24,7 +24,7 @@ change DOWNSTREAM_MAC AA:BB:CC:DD:EE:FE; accept "$TMP/case.conf"
 (load_config "$TMP/case.conf"; [ "$DOWNSTREAM_MAC" = aa:bb:cc:dd:ee:fe ])
 change DOWNSTREAM_SERVICE 'USB 10/100/1000 LAN'; accept "$TMP/case.conf"
 change DOWNSTREAM_SERVICE 'USB Ethernet '; reject "$TMP/case.conf"
-change DOWNSTREAM_SERVICE '$(touch /tmp/air-gateway-parser-must-not-execute)'; reject "$TMP/case.conf"
+change DOWNSTREAM_SERVICE '$(touch /tmp/softrouter-parser-must-not-execute)'; reject "$TMP/case.conf"
 change DOWNSTREAM_SERVICE '`false`'; reject "$TMP/case.conf"
 /bin/cp "$BASE/gateway.conf.example" "$TMP/case.conf"
 printf '\nCLIENT_ADDRESS=192.168.50.3\n' >> "$TMP/case.conf"; reject "$TMP/case.conf"

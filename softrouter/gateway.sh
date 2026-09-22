@@ -6,13 +6,13 @@ set -o pipefail
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export PATH
 umask 077
-INSTALL_DIR=/Library/AirGateway
+INSTALL_DIR=/Library/SoftRouter
 INSTALL_SCRIPT=$INSTALL_DIR/gateway.sh
-ROOT_DIR=/private/var/run/air-gateway
-LOG_DIR=/Library/Logs/AirGateway
+ROOT_DIR=/private/var/run/softrouter
+LOG_DIR=/Library/Logs/SoftRouter
 PREFS=/Library/Preferences/SystemConfiguration/preferences.plist
-ANCHOR=com.apple/air_gateway
-TAG=air_gateway
+ANCHOR=com.apple/softrouter
+TAG=softrouter
 BOOT_UUID=
 SERVICE_EXIT=1
 STATE_CLAIMED=0
@@ -569,7 +569,7 @@ worker() {
 readonly_preflight() {
   local scratch
   # Scratch files only; no state lock, PF load/enable, address or forwarding write.
-  scratch=$(/usr/bin/mktemp -d /private/tmp/air-gateway-preflight.XXXXXXXX)
+  scratch=$(/usr/bin/mktemp -d /private/tmp/softrouter-preflight.XXXXXXXX)
   ROOT_DIR=$scratch
   trap '/bin/rm -rf "$ROOT_DIR"' EXIT
   preflight
@@ -580,5 +580,5 @@ case "${1-}" in
   --service) [ "$#" = 1 ] || fail 'Unexpected arguments.'; guardian ;;
   --worker) [ "$#" = 2 ] || fail 'Unexpected worker arguments.'; worker "$2" ;;
   --preflight) [ "$#" = 1 ] || fail 'Unexpected arguments.'; readonly_preflight ;;
-  *) fail 'Usage: /Library/AirGateway/gateway.sh --service|--preflight' ;;
+  *) fail 'Usage: /Library/SoftRouter/gateway.sh --service|--preflight' ;;
 esac

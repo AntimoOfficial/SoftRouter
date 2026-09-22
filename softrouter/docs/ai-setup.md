@@ -32,8 +32,8 @@ PF 状态的读取可能需要管理员权限；工具不能读取时明确记�
 先运行无特权静态检查：
 
 ```sh
-/bin/bash air-gateway/tests/run.sh
-/bin/bash air-gateway/install.sh --check
+/bin/bash softrouter/tests/run.sh
+/bin/bash softrouter/install.sh --check
 ```
 
 这些检查不等于目标环境兼容，也不等于 PF 实际转发通过。将具体计划与必要的本地管理员步骤一起说明，已经明确授权的步骤无需重复询问。
@@ -47,8 +47,8 @@ PF 状态的读取可能需要管理员权限；工具不能读取时明确记�
 在仓库根目录安装，配置参数必须替换为实际绝对路径：
 
 ```sh
-sudo /bin/bash air-gateway/install.sh --config /absolute/path/gateway.conf
-/Library/AirGateway/gatewayctl status
+sudo /bin/bash softrouter/install.sh --config /absolute/path/gateway.conf
+/Library/SoftRouter/gatewayctl status
 ```
 
 管理员密码只输入本地系统提示。若 AI 工具不能取得所需权限，交给用户执行该条命令，不索取密码，不通过控制终端界面绕过工具限制。
@@ -78,9 +78,9 @@ sudo /bin/bash air-gateway/install.sh --config /absolute/path/gateway.conf
 在本机私有位置记录版本、配置依据、安装前状态、验收结果和未验证项目。提交问题时按 privacy.md 脱敏。
 
 ```sh
-sudo /Library/AirGateway/gatewayctl stop
-sudo /Library/AirGateway/gatewayctl start
-sudo /Library/AirGateway/gatewayctl uninstall
+sudo /Library/SoftRouter/gatewayctl stop
+sudo /Library/SoftRouter/gatewayctl start
+sudo /Library/SoftRouter/gatewayctl uninstall
 ```
 
 正常停止仅清理本程序拥有的资源。ATTENTION 表示需要检查，不能假定卸载已恢复一切。当前卸载保留日志和准备阶段禁用的下游服务；恢复手动准备状态时依据之前的记录，网线仍接着路由器时尤其不要盲目重新启用 DHCP。

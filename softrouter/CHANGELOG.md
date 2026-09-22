@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- 项目更名为 SoftRouter，统一源码目录、安装路径、launchd 标签及 PF 标识。
+- 安装器保留对 Air Gateway 旧安装和恢复状态的拒绝检查，避免并行部署。
+
 ## 0.1.0-alpha.1
 
 - 补入上游 DHCP 单播回复接收及禁止转发保护，覆盖正常与清理规则。

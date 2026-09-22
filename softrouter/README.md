@@ -1,6 +1,6 @@
-# Air Gateway
+# SoftRouter
 
-仓库总入口见 [README](../README.md)，AI 部署从 [操作手册](docs/ai-setup.md) 开始。本文命令在 `air-gateway/` 目录执行；本目录以外的个人运维资料不属于发布包。
+仓库总入口见 [README](../README.md)，AI 部署从 [操作手册](docs/ai-setup.md) 开始。本文命令在 `softrouter/` 目录执行；本目录以外的个人运维资料不属于发布包。
 
 将一台保持唤醒的 Mac 作为 IPv4 网关：通过 Wi-Fi 接入上游网络，再通过独立以太网接口连接下游路由器的 WAN 口。下游设备连接路由器的 LAN 或 Wi-Fi。
 
@@ -76,23 +76,25 @@ sudo /usr/sbin/networksetup -setnetworkserviceenabled 'USB Ethernet' off
 
 ## 安装与使用
 
-在仓库根目录执行，配置文件使用实际绝对路径：
+在 `softrouter/` 目录执行，配置文件使用实际绝对路径：
 
 ```sh
 sudo /bin/bash install.sh --config /path/gateway.conf
-/Library/AirGateway/gatewayctl status
+/Library/SoftRouter/gatewayctl status
 ```
 
-安装位置为 `/Library/AirGateway`，launchd 标签为 `org.airgateway.gateway`。日志保存在 `/Library/Logs/AirGateway`，本轮私有运行状态位于 `/private/var/run/air-gateway`。
+本版本更名自 Air Gateway。安装器会拒绝已有的 SoftRouter 或 Air Gateway 安装、launchd 作业及遗留运行状态；不自动迁移旧配置，也不接管旧服务。已有部署须先按其原说明停止、核实清理并卸载，再单独计划新安装。旧日志会保留。
+
+安装位置为 `/Library/SoftRouter`，launchd 标签为 `org.softrouter.gateway`。日志保存在 `/Library/Logs/SoftRouter`，本轮私有运行状态位于 `/private/var/run/softrouter`。
 
 确认状态为 `RUNNING` 后，将网线接到下游路由器的 WAN 口。自行将路由器 WAN 设为 `CLIENT_ADDRESS`、掩码 `255.255.255.0`、网关 `GATEWAY_ADDRESS`，DNS 使用该上游可访问的解析器；路由器 LAN 使用不同子网。项目不修改路由器配置。
 
 测试时确认客户端确实连接下游路由器，并关闭测试设备的蜂窝数据、其他热点与 VPN，避免把其他路径的成功当作共享成功。`RUNNING` 表示网关配置已建立，不代表上游已认证或互联网可达。完整验收方法见 [测试说明](docs/testing.md)。
 
 ```sh
-sudo /Library/AirGateway/gatewayctl stop
-sudo /Library/AirGateway/gatewayctl start
-sudo /Library/AirGateway/gatewayctl uninstall
+sudo /Library/SoftRouter/gatewayctl stop
+sudo /Library/SoftRouter/gatewayctl start
+sudo /Library/SoftRouter/gatewayctl uninstall
 ```
 
 `stop` 禁用并卸载 launchd 作业，由守护进程清理本轮资源；`start` 重新启用。卸载先停止并确认清理，再移除项目安装文件，保留日志。下游网络服务仍保持 Disabled，不会自动重新开启 DHCP 或恢复安装前用户手动改变的设置。
@@ -112,4 +114,4 @@ sudo /Library/AirGateway/gatewayctl uninstall
 
 ## 许可证
 
-[MIT](LICENSE)，Copyright 2026 Air Gateway contributors。
+[MIT](LICENSE)，Copyright 2026 SoftRouter contributors。

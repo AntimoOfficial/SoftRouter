@@ -35,7 +35,7 @@ def check_path(name):
     if (not name or path.is_absolute() or '..' in path.parts or str(path) != name
             or '\\' in name or any(ord(c) < 33 for c in name)):
         raise ValueError('Invalid publication path')
-    if name not in ROOT_FILES and not name.startswith(('air-gateway/', '.github/')):
+    if name not in ROOT_FILES and not name.startswith(('softrouter/', '.github/')):
         raise ValueError('Outside public partition: ' + name)
     if any(p in BAD_DIRS or p.startswith('recovery') for p in path.parts):
         raise ValueError('Private/generated directory: ' + name)

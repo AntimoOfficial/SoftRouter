@@ -7,7 +7,7 @@
 !/CONTRIBUTING.md
 !/SECURITY.md
 !/PUBLISH_FILES.txt
-!/air-gateway/
+!/softrouter/
 !/.github/
 
 # Nested local configuration and diagnostics are never release inputs.

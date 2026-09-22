@@ -41,11 +41,11 @@ class PublicationTests(unittest.TestCase):
 
     def test_local_config(self):
         with self.assertRaises(ValueError):
-            publication.check_path('air-gateway/gateway.conf')
+            publication.check_path('softrouter/gateway.conf')
 
     def test_parent_traversal(self):
         with self.assertRaises(ValueError):
-            publication.check_path('air-gateway/../private.md')
+            publication.check_path('softrouter/../private.md')
 
     def git(self, *args):
         return subprocess.check_output(['git', '-C', str(self.root), *args], stderr=subprocess.PIPE)

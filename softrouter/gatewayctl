@@ -4,12 +4,12 @@ set -eu
 set -o pipefail
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export PATH
-LABEL=org.airgateway.gateway
-INSTALL=/Library/AirGateway
-PLIST=/Library/LaunchDaemons/org.airgateway.gateway.plist
-LOGS=/Library/Logs/AirGateway
-STATE=/private/var/run/air-gateway
-fail() { printf 'AirGateway control: %s\n' "$*" >&2; exit 1; }
+LABEL=org.softrouter.gateway
+INSTALL=/Library/SoftRouter
+PLIST=/Library/LaunchDaemons/org.softrouter.gateway.plist
+LOGS=/Library/Logs/SoftRouter
+STATE=/private/var/run/softrouter
+fail() { printf 'SoftRouter control: %s\n' "$*" >&2; exit 1; }
 root_required() { [ "$(/usr/bin/id -u)" = 0 ] || fail 'Use sudo in your local terminal for this operation.'; }
 root_file() { [ -f "$1" ] && [ ! -L "$1" ] && [ "$(/usr/bin/stat -f '%u:%Lp:%l' "$1")" = "0:$2:1" ]; }
 installed_ok() {
@@ -70,7 +70,7 @@ case "${1-status}" in
     root_required; installed_ok; stop_service
     /bin/rm "$PLIST" "$INSTALL/gateway.sh" "$INSTALL/gatewayctl" "$INSTALL/config.sh" "$INSTALL/gateway.conf"
     /bin/rmdir "$INSTALL" || printf 'Installation directory contains other files and was retained.\n'
-    printf 'AirGateway removed. Diagnostic logs were retained at %s.\n' "$LOGS"
+    printf 'SoftRouter removed. Diagnostic logs were retained at %s.\n' "$LOGS"
     ;;
   *) fail 'Usage: gatewayctl [status|start|stop|uninstall]' ;;
 esac

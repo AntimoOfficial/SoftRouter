@@ -4,7 +4,7 @@
 set -eu
 set -o pipefail
 BASE=$(cd "$(dirname "$0")/.." && pwd)
-TMP=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/air-gateway-daemon-test.XXXXXXXX")
+TMP=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/softrouter-daemon-test.XXXXXXXX")
 trap 'rm -rf "$TMP"' EXIT
 ROOT_DIR=$TMP/state
 mkdir "$ROOT_DIR"
@@ -12,8 +12,8 @@ UPSTREAM_INTERFACE=en2
 DOWNSTREAM_INTERFACE=en9
 GATEWAY_ADDRESS=192.168.50.1
 CLIENT_ADDRESS=192.168.50.2
-TAG=air_gateway
-ANCHOR=com.apple/air_gateway
+TAG=softrouter
+ANCHOR=com.apple/softrouter
 passed=0
 fail() { printf 'Test failed: %s\n' "$*" >&2; exit 1; }
 ok() { "$@" || fail "$*"; passed=$((passed+1)); }
@@ -47,13 +47,13 @@ printf 'lo0: flags=0\nen2: flags=0\nen9: flags=0\n' > "$ROOT_DIR/interfaces-befo
 write_rules
 ok test "$(wc -l < "$TMP/parse-calls" | tr -d ' ')" = 2
 for rules in "$ROOT_DIR/rules" "$ROOT_DIR/protection-rules"; do
-  ok grep -Fxq 'pass in quick on en2 inet proto udp from any port 67 to any port 68 tag air_gateway_dhcp no state label "gateway_dhcp_in"' "$rules"
-  ok grep -Fxq 'block drop out quick inet tagged air_gateway_dhcp label "gateway_dhcp_no_transit"' "$rules"
+  ok grep -Fxq 'pass in quick on en2 inet proto udp from any port 67 to any port 68 tag softrouter_dhcp no state label "gateway_dhcp_in"' "$rules"
+  ok grep -Fxq 'block drop out quick inet tagged softrouter_dhcp label "gateway_dhcp_no_transit"' "$rules"
   ok awk '/gateway_dhcp_in/ {dhcp=NR} /gateway_other_transit/ {block=NR} END {exit !(dhcp>0 && dhcp<block)}' "$rules"
 done
 ok grep -Fxq 'nat on en2 inet from 192.168.50.2 to any -> (en2)' "$ROOT_DIR/rules"
 ok grep -Fq 'keep state (if-bound)' "$ROOT_DIR/rules"
-ok grep -Fq 'block drop out quick inet tagged air_gateway label "gateway_other_egress"' "$ROOT_DIR/rules"
+ok grep -Fq 'block drop out quick inet tagged softrouter label "gateway_other_egress"' "$ROOT_DIR/rules"
 ok awk '/gateway_ingress/ {ingress=NR} /gateway_dhcp_in/ {dhcp=NR} END {exit !(ingress>0 && ingress<dhcp)}' "$ROOT_DIR/rules"
 bad grep -Eq 'route-to|reply-to|nat on' "$ROOT_DIR/protection-rules"
 UPSTREAM_INTERFACE='en2;invalid'
@@ -117,7 +117,7 @@ pf() {
   case "$*" in
     '-s Anchors') printf 'com.apple\n' ;;
     '-a com.apple -s Anchors')
-      printf '200.AirDrop\n250.ApplicationFirewall\nair_gateway\n'
+      printf '200.AirDrop\n250.ApplicationFirewall\nsoftrouter\n'
       if [ "$UNKNOWN_CHILD" = 1 ]; then printf 'unexpected\n'; fi ;;
     '-a com.apple -sr')
       printf 'anchor "200.AirDrop/*" all\nanchor "250.ApplicationFirewall/*" all\n'
