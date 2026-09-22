@@ -1,0 +1,76 @@
+#!/bin/bash
+# Deliberately small launchd control surface; Bash 3.2.
+set -eu
+set -o pipefail
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+LABEL=org.airgateway.gateway
+INSTALL=/Library/AirGateway
+PLIST=/Library/LaunchDaemons/org.airgateway.gateway.plist
+LOGS=/Library/Logs/AirGateway
+STATE=/private/var/run/air-gateway
+fail() { printf 'AirGateway control: %s\n' "$*" >&2; exit 1; }
+root_required() { [ "$(/usr/bin/id -u)" = 0 ] || fail 'Use sudo in your local terminal for this operation.'; }
+root_file() { [ -f "$1" ] && [ ! -L "$1" ] && [ "$(/usr/bin/stat -f '%u:%Lp:%l' "$1")" = "0:$2:1" ]; }
+installed_ok() {
+  [ -d "$INSTALL" ] && [ ! -L "$INSTALL" ] && [ "$(/usr/bin/stat -f '%u:%Lp' "$INSTALL")" = 0:755 ] || fail 'Unexpected installation directory.'
+  [ -d "$LOGS" ] && [ ! -L "$LOGS" ] && [ "$(/usr/bin/stat -f '%u:%Lp' "$LOGS")" = 0:755 ] || fail 'Unexpected log directory.'
+  root_file "$INSTALL/gateway.sh" 500 && root_file "$INSTALL/gatewayctl" 755 &&
+    root_file "$INSTALL/config.sh" 500 && root_file "$INSTALL/gateway.conf" 600 &&
+    root_file "$PLIST" 644 || fail 'Unexpected installed file ownership or permissions.'
+}
+job_loaded() { /bin/launchctl print "system/$LABEL" >/dev/null 2>&1; }
+job_running() {
+  /bin/launchctl print "system/$LABEL" 2>/dev/null | /usr/bin/awk '$1=="state" && $2=="=" && $3=="running"{found=1} END{exit !found}'
+}
+ready_status() {
+  root_file "$LOGS/status.txt" 644 && /usr/bin/grep -q '^state=RUNNING$' "$LOGS/status.txt" &&
+    /usr/bin/grep -q '^forwarding=1$' "$LOGS/status.txt" && job_running
+}
+show_status() {
+  if root_file "$LOGS/status.txt" 644; then /bin/cat "$LOGS/status.txt"; else printf 'No trusted daemon status is available.\n'; fi
+  /bin/launchctl print "system/$LABEL" 2>/dev/null | /usr/bin/awk '/state =|pid =|last exit code =|runs =/ {print}' || printf 'launchd: job is not loaded or is not visible to this caller.\n'
+}
+stop_service() {
+  local n
+  /bin/launchctl disable "system/$LABEL"
+  if job_loaded; then /bin/launchctl bootout "system/$LABEL" || fail 'Could not unload the service; no runtime resources were forcibly removed.'; fi
+  for n in {1..35}; do
+    [ -e "$STATE" ] || [ -L "$STATE" ] || break
+    /bin/sleep 1
+  done
+  ! job_loaded || fail 'The launchd job is still loaded.'
+  [ ! -e "$STATE" ] && [ ! -L "$STATE" ] || fail 'Service is disabled but recovery state remains. Inspect the logs; no PF or interface state was forcibly removed.'
+  printf 'Service disabled and unloaded; no owned recovery state remains.\n'
+  show_status
+}
+start_service() {
+  local n
+  if ready_status; then printf 'Service is already RUNNING.\n'; show_status; return 0; fi
+  if ! job_loaded && { [ -e "$STATE" ] || [ -L "$STATE" ]; }; then fail 'Recovery state remains from an earlier instance; ownership takeover is forbidden.'; fi
+  if ! job_running; then
+    # Validate while stopped; the daemon also checks again before any mutation.
+    /bin/bash "$INSTALL/gateway.sh" --preflight
+    /bin/rm -f "$LOGS/status.txt"
+  fi
+  /bin/launchctl enable "system/$LABEL"
+  if job_loaded; then /bin/launchctl kickstart "system/$LABEL"; else /bin/launchctl bootstrap system "$PLIST"; fi
+  for n in {1..45}; do
+    if ready_status; then printf 'Service is RUNNING.\n'; show_status; return 0; fi
+    /bin/sleep 1
+  done
+  fail 'Service has not reached RUNNING; inspect status and logs. No recovery state was removed.'
+}
+case "${1-status}" in
+  status) [ "$#" -le 1 ] || fail 'Unexpected arguments.'; show_status ;;
+  start) [ "$#" = 1 ] || fail 'Unexpected arguments.'; root_required; installed_ok; start_service ;;
+  stop) [ "$#" = 1 ] || fail 'Unexpected arguments.'; root_required; installed_ok; stop_service ;;
+  uninstall)
+    [ "$#" = 1 ] || fail 'Unexpected arguments.'
+    root_required; installed_ok; stop_service
+    /bin/rm "$PLIST" "$INSTALL/gateway.sh" "$INSTALL/gatewayctl" "$INSTALL/config.sh" "$INSTALL/gateway.conf"
+    /bin/rmdir "$INSTALL" || printf 'Installation directory contains other files and was retained.\n'
+    printf 'AirGateway removed. Diagnostic logs were retained at %s.\n' "$LOGS"
+    ;;
+  *) fail 'Usage: gatewayctl [status|start|stop|uninstall]' ;;
+esac

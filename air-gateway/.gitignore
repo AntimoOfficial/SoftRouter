@@ -1,0 +1,13 @@
+# Local network configuration and diagnostic data never belong in releases.
+gateway.conf
+*.local.conf
+*.log
+*.pcap
+*.pcapng
+.DS_Store
+logs/
+runtime/
+recovery*/
+dist/
+__pycache__/
+*.pyc

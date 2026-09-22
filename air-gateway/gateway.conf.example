@@ -1,0 +1,9 @@
+# Example only. Discover and replace the downstream identity before installing.
+# This is data, not shell: no quotes, substitutions or inline comments.
+UPSTREAM_INTERFACE=en0
+DOWNSTREAM_INTERFACE=en1
+DOWNSTREAM_SERVICE=USB Ethernet
+DOWNSTREAM_SERVICE_UUID=00000000-0000-0000-0000-000000000001
+DOWNSTREAM_MAC=02:00:00:00:00:01
+GATEWAY_ADDRESS=192.168.50.1
+CLIENT_ADDRESS=192.168.50.2

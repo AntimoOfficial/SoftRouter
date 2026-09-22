@@ -1,0 +1,19 @@
+name: Offline and publication checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: macos-14
+    timeout-minutes: 5
+    steps:
+      # actions/checkout v7, pinned to the verified upstream tag commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check the committed publication boundary
+        run: python3 air-gateway/tools/check-publication.py --head
+      - name: Run unprivileged regressions
+        run: /bin/bash air-gateway/tests/run.sh
