@@ -14,8 +14,8 @@ jobs:
         with:
           persist-credentials: false
       - name: Check the committed publication boundary
-        run: python3 air-gateway/tools/check-publication.py --head
+        run: python3 softrouter/tools/check-publication.py --head
       - name: Run unprivileged regressions
-        run: /bin/bash air-gateway/tests/run.sh
+        run: /bin/bash softrouter/tests/run.sh
       - name: Build and inspect the macOS installer without installing
-        run: /bin/bash air-gateway/tools/build-macos.sh
+        run: /bin/bash softrouter/tools/build-macos.sh
