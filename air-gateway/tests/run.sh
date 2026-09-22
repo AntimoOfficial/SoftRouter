@@ -7,6 +7,7 @@ for file in gateway.sh gatewayctl config.sh install.sh tests/run.sh tests/test-c
 done
 /bin/bash "$BASE/tests/test-config.sh"
 /bin/bash "$BASE/tests/test-daemon.sh"
+/bin/bash "$BASE/tests/test-gui-bridge.sh"
 python3 "$BASE/tests/test-publication.py"
 python3 "$BASE/tools/check-publication.py"
 if [ "$(uname -s)" = Darwin ]; then

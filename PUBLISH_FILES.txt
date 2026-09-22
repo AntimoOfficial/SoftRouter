@@ -17,6 +17,7 @@ air-gateway/config.sh
 air-gateway/docs/ai-setup.md
 air-gateway/docs/compatibility.md
 air-gateway/docs/design.md
+air-gateway/docs/desktop-installer.md
 air-gateway/docs/dns-and-proxy.md
 air-gateway/docs/power-and-lid.md
 air-gateway/docs/privacy.md
@@ -29,10 +30,19 @@ air-gateway/gateway.conf.example
 air-gateway/gateway.sh
 air-gateway/gatewayctl
 air-gateway/install.sh
+air-gateway/macos/AirGateway.swift
+air-gateway/macos/Distribution.xml
+air-gateway/macos/Info.plist
+air-gateway/macos/gui-install.sh
+air-gateway/macos/resources/Conclusion.html
+air-gateway/macos/resources/Welcome.html
 air-gateway/org.airgateway.gateway.plist
 air-gateway/tests/run.sh
 air-gateway/tests/test-config.sh
 air-gateway/tests/test-daemon.sh
+air-gateway/tests/test-gui-bridge.sh
 air-gateway/tests/test-publication.py
+air-gateway/tools/build-macos.sh
 air-gateway/tools/check-publication.py
 air-gateway/tools/package.sh
+air-gateway/tools/verify-macos.py
