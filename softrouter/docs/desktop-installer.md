@@ -1,6 +1,6 @@
 # 双击安装预览版
 
-从 [Releases](https://github.com/AntimoOfficial/SoftRouter/releases) 下载 `SoftRouter-0.1.0-alpha.2-unsigned.pkg`。这是包含 Apple Silicon 与 Intel 架构的 macOS 14+ 安装包，运行时不需要 Git、Python、Xcode 或终端脚本。
+从 [Releases](https://github.com/AntimoOfficial/SoftRouter/releases) 下载 `SoftRouter-0.1.0-alpha.3-unsigned.pkg`。这是包含 Apple Silicon 与 Intel 架构的 macOS 14+ 安装包，运行时不需要 Git、Python、Xcode 或终端脚本。
 
 ## 安装流程
 
@@ -37,3 +37,7 @@
 ```
 
 默认从已审计的 HEAD 提交构建。开发时可使用 `--worktree`，构建信息会标记为未提交预览，不能把它冒充某个已发布提交。产物写入忽略的 `dist/`；不要将二进制加入 Git。
+
+## 只读巡检
+
+0.1.0-alpha.3 起，应用提供「生成诊断报告」按钮。无需安装新网关或输入管理员密码；默认查询最近三天，可选填写公开站点与本机代理进行对照，输出 Markdown 和 JSON。报告不会自动上传，未知项目不会被视为正常，参见 [诊断 SOP](diagnostics.md)。

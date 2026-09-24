@@ -15,10 +15,10 @@ valid_digest "$2" || fail 'Invalid configuration digest.'
 case "$1" in /*) ;; *) fail 'Configuration path must be absolute.' ;; esac
 [ -f "$1" ] && [ ! -L "$1" ] || fail 'Configuration must be a regular file.'
 [ "$(/usr/bin/stat -f %z "$1")" -le 4096 ] || fail 'Configuration exceeds 4096 bytes.'
-for directory in '/Applications/SoftRouter.app' '/Applications/SoftRouter.app/Contents' '/Applications/SoftRouter.app/Contents/Resources' "$SOURCE"; do
+for directory in '/Applications/SoftRouter.app' '/Applications/SoftRouter.app/Contents' '/Applications/SoftRouter.app/Contents/Resources' "$SOURCE" "$SOURCE/diagnostics"; do
   [ -d "$directory" ] && [ ! -L "$directory" ] && [ "$(/usr/bin/stat -f '%u:%Lp' "$directory")" = 0:755 ] || fail 'Use the application installed by the official package; its ownership must remain unchanged.'
 done
-for name in gui-install.sh install.sh gateway.sh gatewayctl config.sh org.softrouter.gateway.plist; do
+for name in gui-install.sh install.sh gateway.sh gatewayctl config.sh org.softrouter.gateway.plist diagnose.sh diagnostics/lib.sh diagnostics/render.awk; do
   [ -f "$SOURCE/$name" ] && [ ! -L "$SOURCE/$name" ] &&
     [ "$(/usr/bin/stat -f '%u:%Lp:%l' "$SOURCE/$name")" = 0:644:1 ] || fail 'Packaged code ownership or permissions changed.'
 done

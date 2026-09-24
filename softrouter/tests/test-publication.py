@@ -43,6 +43,10 @@ class PublicationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             publication.check_path('softrouter/gateway.conf')
 
+    def test_diagnostic_report_is_private(self):
+        with self.assertRaises(ValueError):
+            publication.check_path('softrouter/softrouter-report-example/report.json')
+
     def test_parent_traversal(self):
         with self.assertRaises(ValueError):
             publication.check_path('softrouter/../private.md')

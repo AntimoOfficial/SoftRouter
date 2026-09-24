@@ -63,14 +63,16 @@ start_service() {
 }
 case "${1-status}" in
   status) [ "$#" -le 1 ] || fail 'Unexpected arguments.'; show_status ;;
+  diagnose) shift; exec /bin/bash "$INSTALL/diagnose.sh" "$@" ;;
   start) [ "$#" = 1 ] || fail 'Unexpected arguments.'; root_required; installed_ok; start_service ;;
   stop) [ "$#" = 1 ] || fail 'Unexpected arguments.'; root_required; installed_ok; stop_service ;;
   uninstall)
     [ "$#" = 1 ] || fail 'Unexpected arguments.'
     root_required; installed_ok; stop_service
-    /bin/rm "$PLIST" "$INSTALL/gateway.sh" "$INSTALL/gatewayctl" "$INSTALL/config.sh" "$INSTALL/gateway.conf"
+    /bin/rm "$PLIST" "$INSTALL/gateway.sh" "$INSTALL/gatewayctl" "$INSTALL/config.sh" "$INSTALL/gateway.conf" "$INSTALL/diagnose.sh" "$INSTALL/diagnostics/lib.sh" "$INSTALL/diagnostics/render.awk"
+    /bin/rmdir "$INSTALL/diagnostics"
     /bin/rmdir "$INSTALL" || printf 'Installation directory contains other files and was retained.\n'
     printf 'SoftRouter removed. Diagnostic logs were retained at %s.\n' "$LOGS"
     ;;
-  *) fail 'Usage: gatewayctl [status|start|stop|uninstall]' ;;
+  *) fail 'Usage: gatewayctl [status|diagnose|start|stop|uninstall]' ;;
 esac

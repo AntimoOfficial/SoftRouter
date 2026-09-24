@@ -75,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let state = NSTextField(wrappingLabelWithString: "")
     let installButton = NSButton(title: "安装网关…", target: nil, action: nil)
     let chooseButton = NSButton(title: "导入配置文件…", target: nil, action: nil)
+    let diagnoseButton = NSButton(title: "生成诊断报告…", target: nil, action: nil)
     var configData: Data?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -104,7 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let refresh = NSButton(title: "读取状态", target: self, action: #selector(refreshStatus))
         let guide = NSButton(title: "部署指南", target: self, action: #selector(openGuide))
         let row = NSStackView(views: [chooseButton, installButton, refresh, guide]); row.spacing = 12
-        let stack = NSStackView(views: [heading, intro, preview, scroll, state, row])
+        diagnoseButton.target = self; diagnoseButton.action = #selector(diagnose)
+        let stack = NSStackView(views: [heading, intro, preview, scroll, state, row, diagnoseButton])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 16
         stack.translatesAutoresizingMaskIntoConstraints = false
         window.contentView!.addSubview(stack)
@@ -183,6 +185,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 done.informativeText = "读取状态确认 RUNNING，再将网线接到路由器 WAN。按配置填写路由器 WAN 和上游 DNS，并从真实下游设备验证网页。"
                 done.addButton(withTitle: "知道了"); done.runModal()
             } catch { showError(error) }
+        }
+    }
+
+
+    @objc func diagnose() {
+        let options = NSAlert()
+        options.messageText = "生成最近三天的网络诊断报告"
+        options.informativeText = "只读取状态与有限历史日志，不需管理员密码、不修改网络。可选测试公开网址；不要填写含凭据、查询参数或订阅链接的网址。报告不会自动上传。"
+        let form = NSStackView(); form.orientation = .vertical; form.alignment = .leading; form.spacing = 6
+        let upstream = NSTextField(), downstream = NSTextField(), urls = NSTextField(), proxy = NSTextField()
+        let values = configData.flatMap { try? Setup.parse($0) }
+        upstream.stringValue = values?["UPSTREAM_INTERFACE"] ?? ""
+        downstream.stringValue = values?["DOWNSTREAM_INTERFACE"] ?? ""
+        for (label, field) in [("上游接口（可留空，自动读取）", upstream), ("下游接口（可留空，未知时不会猜测）", downstream), ("公开网址（可留空，多个用空格分隔，最多五个）", urls), ("本机 HTTP 代理（可留空，例如 http://127.0.0.1:7890）", proxy)] {
+            form.addArrangedSubview(NSTextField(labelWithString: label)); form.addArrangedSubview(field)
+            field.widthAnchor.constraint(equalToConstant: 470).isActive = true
+        }
+        form.frame = NSRect(x: 0, y: 0, width: 470, height: 210)
+        options.accessoryView = form
+        options.addButton(withTitle: "选择保存位置…"); options.addButton(withTitle: "取消")
+        guard options.runModal() == .alertFirstButtonReturn else { return }
+        let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false; panel.canCreateDirectories = true
+        panel.prompt = "生成报告"; panel.message = "在所选文件夹内创建一个新的私有报告目录，不覆盖已有文件。"
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        let script = Bundle.main.resourceURL!.appendingPathComponent("core/diagnose.sh").path
+        var args = [script, "--days", "3", "--output-dir", folder.path]
+        for (flag, field) in [("--upstream", upstream), ("--downstream", downstream), ("--proxy", proxy)] {
+            let value = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { args += [flag, value] }
+        }
+        for url in urls.stringValue.split(whereSeparator: { $0.isWhitespace }) { args += ["--url", String(url)] }
+        diagnoseButton.isEnabled = false; installButton.isEnabled = false; chooseButton.isEnabled = false
+        state.stringValue = "正在收集只读证据；历史检索和网页测试均有超时限制…"
+        DispatchQueue.global(qos: .utility).async { [self, args] in
+            let result = Result { try Setup.run("/bin/bash", args) }
+            DispatchQueue.main.async { [self] in
+                diagnoseButton.isEnabled = true; chooseButton.isEnabled = true; refreshStatus()
+                switch result {
+                case .failure(let error): showError(error)
+                case .success(let output):
+                    summary.string = output.1
+                    if output.0 != 0 { showError(SetupError.message(output.1)); return }
+                    state.stringValue = "报告已生成；请阅读 unknown 与 unverified 项。下游联网与页面内容仍需实际验收。"
+                    if let line = output.1.components(separatedBy: "\n").first(where: { $0.hasPrefix("REPORT_DIR=") }) {
+                        let path = String(line.dropFirst("REPORT_DIR=".count))
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path).appendingPathComponent("report.md")])
+                    }
+                }
+            }
         }
     }
 

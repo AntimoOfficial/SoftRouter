@@ -119,6 +119,7 @@ status_write() {
   tmp=$(/usr/bin/mktemp "$LOG_DIR/.status.XXXXXXXX") || return 1
   {
     printf 'state=%s\ncleanup_ok=%s\nmessage=%s\n' "$1" "$2" "$3"
+    printf 'upstream_interface=%s\ndownstream_interface=%s\n' "${UPSTREAM_INTERFACE-}" "${DOWNSTREAM_INTERFACE-}"
     printf 'forwarding=%s\n' "$(/usr/sbin/sysctl -n net.inet.ip.forwarding 2>/dev/null || printf unknown)"
     printf 'updated_utc=%s\nboot_session=%s\nstate_directory=%s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$BOOT_UUID" "$ROOT_DIR"
     [ ! -s "$ROOT_DIR/guardian-pid" ] || { printf 'guardian_pid='; /bin/cat "$ROOT_DIR/guardian-pid"; }

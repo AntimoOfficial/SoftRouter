@@ -28,3 +28,6 @@
 **/logs/
 **/recovery*/
 **/dist/
+
+# Generated private network reports.
+**/softrouter-report-*/

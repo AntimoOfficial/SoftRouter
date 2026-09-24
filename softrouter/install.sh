@@ -22,12 +22,14 @@ regular_root_file() {
 }
 check_payload() {
   local base=$1 p
-  for p in gateway.sh gatewayctl config.sh org.softrouter.gateway.plist; do
+  for p in gateway.sh gatewayctl config.sh org.softrouter.gateway.plist diagnose.sh diagnostics/lib.sh diagnostics/render.awk; do
     [ -f "$base/$p" ] && [ ! -L "$base/$p" ] || fail "Missing or symbolic-link payload: $p"
   done
   /bin/bash -n "$base/gateway.sh"
   /bin/bash -n "$base/gatewayctl"
   /bin/bash -n "$base/config.sh"
+  /bin/bash -n "$base/diagnose.sh"
+  /bin/bash -n "$base/diagnostics/lib.sh"
   /usr/bin/plutil -lint "$base/org.softrouter.gateway.plist"
   [ "$(/usr/libexec/PlistBuddy -c 'Print :Label' "$base/org.softrouter.gateway.plist")" = "$LABEL" ] || fail 'Wrong launchd label.'
   [ "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "$base/org.softrouter.gateway.plist")" = /bin/bash ] || fail 'Wrong interpreter.'
@@ -93,7 +95,8 @@ cleanup_install() {
     if [ "$safe_remove" = 1 ]; then
       [ "$PLIST_CREATED" = 0 ] || /bin/rm -f "$PLIST"
       if [ "$INSTALL_CREATED" = 1 ]; then
-        /bin/rm -f "$INSTALL/gateway.sh" "$INSTALL/gatewayctl" "$INSTALL/config.sh" "$INSTALL/gateway.conf"
+        /bin/rm -f "$INSTALL/gateway.sh" "$INSTALL/gatewayctl" "$INSTALL/config.sh" "$INSTALL/gateway.conf" "$INSTALL/diagnose.sh" "$INSTALL/diagnostics/lib.sh" "$INSTALL/diagnostics/render.awk"
+        /bin/rmdir "$INSTALL/diagnostics" 2>/dev/null || :
         /bin/rmdir "$INSTALL" || printf 'Installation directory contains other files and was retained.\n' >&2
       fi
     else
@@ -106,15 +109,17 @@ cleanup_install() {
     fi
     printf 'Root-private installation diagnostics: %s\n' "$STAGE" >&2
   else
-    /bin/rm -f "$STAGE/gateway.sh" "$STAGE/gatewayctl" "$STAGE/config.sh" "$STAGE/gateway.conf" "$STAGE/org.softrouter.gateway.plist" "$STAGE/preflight.log" "$STAGE/pf-before.txt" "$STAGE/prior-status.txt"
+    /bin/rm -f "$STAGE/gateway.sh" "$STAGE/gatewayctl" "$STAGE/config.sh" "$STAGE/gateway.conf" "$STAGE/org.softrouter.gateway.plist" "$STAGE/preflight.log" "$STAGE/pf-before.txt" "$STAGE/prior-status.txt" "$STAGE/diagnose.sh" "$STAGE/diagnostics/lib.sh" "$STAGE/diagnostics/render.awk"
+    /bin/rmdir "$STAGE/diagnostics"
     /bin/rmdir "$STAGE" || printf 'Private staging directory retained: %s\n' "$STAGE"
   fi
   exit "$result"
 }
 trap cleanup_install EXIT
 trap 'exit 130' HUP INT TERM
+/bin/mkdir "$STAGE/diagnostics"
 # Freeze all executable inputs before checking or evaluating the config library.
-for p in gateway.sh gatewayctl config.sh org.softrouter.gateway.plist; do
+for p in gateway.sh gatewayctl config.sh org.softrouter.gateway.plist diagnose.sh diagnostics/lib.sh diagnostics/render.awk; do
   [ -f "$SOURCE/$p" ] && [ ! -L "$SOURCE/$p" ] || fail "Invalid source payload: $p"
   /usr/bin/install -o root -g wheel -m 500 "$SOURCE/$p" "$STAGE/$p"
 done
@@ -133,6 +138,10 @@ INSTALL_CREATED=1
 /usr/bin/install -d -o root -g wheel -m 755 "$LOGS"
 /usr/bin/install -o root -g wheel -m 500 "$STAGE/gateway.sh" "$INSTALL/gateway.sh"
 /usr/bin/install -o root -g wheel -m 755 "$STAGE/gatewayctl" "$INSTALL/gatewayctl"
+/usr/bin/install -d -o root -g wheel -m 755 "$INSTALL/diagnostics"
+for p in diagnose.sh diagnostics/lib.sh diagnostics/render.awk; do
+  /usr/bin/install -o root -g wheel -m 644 "$STAGE/$p" "$INSTALL/$p"
+done
 /usr/bin/install -o root -g wheel -m 500 "$STAGE/config.sh" "$INSTALL/config.sh"
 /usr/bin/install -o root -g wheel -m 600 "$STAGE/gateway.conf" "$INSTALL/gateway.conf"
 [ ! -e "$PLIST" ] && [ ! -L "$PLIST" ] || fail 'Launchd plist appeared concurrently; it was not overwritten.'

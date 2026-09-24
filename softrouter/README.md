@@ -99,6 +99,10 @@ sudo /Library/SoftRouter/gatewayctl uninstall
 
 `stop` 禁用并卸载 launchd 作业，由守护进程清理本轮资源；`start` 重新启用。卸载先停止并确认清理，再移除项目安装文件，保留日志。下游网络服务仍保持 Disabled，不会自动重新开启 DHCP 或恢复安装前用户手动改变的设置。
 
+## 只读诊断
+
+新安装可运行 `/Library/SoftRouter/gatewayctl diagnose --days 3`；源码可运行 `/bin/bash diagnose.sh --days 3`。不需要 sudo，生成私有 Markdown/JSON 报告。图形应用也提供按钮，详见 [巡检 SOP](docs/diagnostics.md)。
+
 ## 状态与恢复
 
 | 状态 | 含义 |

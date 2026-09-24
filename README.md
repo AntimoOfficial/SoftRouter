@@ -6,13 +6,17 @@ SoftRouter 将保持唤醒的 Mac 作为 IPv4 网关：Mac 通过 Wi-Fi 连接�
 
 macOS 负责校园或企业 802.1X 认证，SoftRouter 负责有线转发与常驻管理。上游暂时断线时服务保持运行，上游恢复后客户端可以重新建立连接。
 
-当前为 `0.1.0-alpha.2` 开发预览。通用化版本通过离线检查，但尚未完成真实安装验收；专用部署的成功不能推广为所有 Mac、系统和网卡均受支持。详见 [兼容性与验证范围](softrouter/docs/compatibility.md)。
+当前为 `0.1.0-alpha.3` 开发预览。通用化版本通过离线检查，但尚未完成真实安装验收；专用部署的成功不能推广为所有 Mac、系统和网卡均受支持。详见 [兼容性与验证范围](softrouter/docs/compatibility.md)。
 
 ## 下载并双击安装
 
-[打开 Release 下载页](https://github.com/AntimoOfficial/SoftRouter/releases/tag/v0.1.0-alpha.2)。下载 `.pkg` 后双击安装应用，再导入 AI 按部署指南生成的本机配置，通过系统授权安装网关。详见 [图形安装说明](softrouter/docs/desktop-installer.md)。
+[打开 Release 下载页](https://github.com/AntimoOfficial/SoftRouter/releases/tag/v0.1.0-alpha.3)。下载 `.pkg` 后双击安装应用，再导入 AI 按部署指南生成的本机配置，通过系统授权安装网关。详见 [图形安装说明](softrouter/docs/desktop-installer.md)。
 
 安装包支持 macOS 14+ 的 Apple Silicon 与 Intel，当前未使用 Developer ID 签名或 Apple 公证，首次打开可能被 macOS 拦截。包只安装应用，网络转发需在应用内明确启用；已有部署不会自动迁移。
+
+## 网络巡检
+
+应用内点击「生成诊断报告」，或运行 `/bin/bash softrouter/diagnose.sh --days 3`，生成本地 Markdown 和 JSON 报告。无需管理员权限，不改变网络。可选比较指定公开网站的直连与本机代理路径。详见 [巡检 SOP](softrouter/docs/diagnostics.md) 与 [AI Skill](softrouter/skills/softrouter-health/SKILL.md)。
 
 ## 交给 AI 配置
 

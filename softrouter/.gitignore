@@ -11,3 +11,6 @@ recovery*/
 dist/
 __pycache__/
 *.pyc
+
+# Generated private network reports.
+**/softrouter-report-*/

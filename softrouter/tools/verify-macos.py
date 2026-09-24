@@ -33,9 +33,10 @@ with tempfile.TemporaryDirectory(prefix='softrouter-pkg-check-') as temp:
     assert metadata['LSMinimumSystemVersion'] == '14.0'
     core = app / 'Contents/Resources/core'
     assert {p.name for p in core.iterdir()} == {
-        'gui-install.sh', 'install.sh', 'gateway.sh', 'gatewayctl', 'config.sh', 'org.softrouter.gateway.plist'
+        'gui-install.sh', 'install.sh', 'gateway.sh', 'gatewayctl', 'config.sh', 'org.softrouter.gateway.plist', 'diagnose.sh', 'diagnostics'
     }, 'Unexpected core payload'
-    assert all(p.stat().st_mode & 0o777 == 0o644 for p in core.iterdir())
+    assert {p.name for p in (core / 'diagnostics').iterdir()} == {'lib.sh', 'render.awk'}
+    assert all(p.stat().st_mode & 0o777 == 0o644 for p in core.rglob('*') if p.is_file())
     executable = app / 'Contents/MacOS/SoftRouter'
     architectures = subprocess.check_output(['/usr/bin/lipo', '-archs', str(executable)], text=True).split()
     assert set(architectures) == {'arm64', 'x86_64'}, 'Missing universal architecture'

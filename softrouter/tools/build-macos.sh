@@ -40,7 +40,7 @@ numeric=${version/-alpha./.}
 output="$REPO/dist/SoftRouter-$version-unsigned.pkg"
 [ ! -e "$output" ] && [ ! -L "$output" ] || { printf 'Output already exists: %s\n' "$output" >&2; exit 1; }
 app="$scratch/root/Applications/SoftRouter.app"
-mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/core"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/core/diagnostics"
 cp "$source/macos/Info.plist" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${version%%-*}" "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $numeric" "$app/Contents/Info.plist"
@@ -53,7 +53,7 @@ for architecture in arm64 x86_64; do
     "$source/macos/SoftRouter.swift" -o "$scratch/SoftRouter-$architecture"
 done
 /usr/bin/lipo -create "$scratch/SoftRouter-arm64" "$scratch/SoftRouter-x86_64" -output "$app/Contents/MacOS/SoftRouter"
-for file in install.sh gateway.sh gatewayctl config.sh org.softrouter.gateway.plist; do
+for file in install.sh gateway.sh gatewayctl config.sh org.softrouter.gateway.plist diagnose.sh diagnostics/lib.sh diagnostics/render.awk; do
   cp "$source/$file" "$app/Contents/Resources/core/$file"
 done
 cp "$source/macos/gui-install.sh" "$app/Contents/Resources/core/gui-install.sh"

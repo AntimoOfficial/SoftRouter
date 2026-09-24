@@ -37,7 +37,7 @@ def check_path(name):
         raise ValueError('Invalid publication path')
     if name not in ROOT_FILES and not name.startswith(('softrouter/', '.github/')):
         raise ValueError('Outside public partition: ' + name)
-    if any(p in BAD_DIRS or p.startswith('recovery') for p in path.parts):
+    if any(p in BAD_DIRS or p.startswith(('recovery', 'softrouter-report-')) for p in path.parts):
         raise ValueError('Private/generated directory: ' + name)
     if any(fnmatch.fnmatchcase(path.name, pat) for pat in FORBIDDEN):
         raise ValueError('Private/generated filename: ' + name)

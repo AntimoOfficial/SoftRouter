@@ -2,6 +2,8 @@
 
 本手册使用当前已经存在的脚本。统一 inspect/plan/apply CLI、JSON 状态和自动升级属于 roadmap，不能作为已实现功能调用。开始前阅读仓库根目录 AGENTS.md、本文、compatibility.md 和本目录上一级 README.md。
 
+近期运行报告与只读排障使用 [诊断 SOP](diagnostics.md) 和内置 diagnose.sh；该入口不安装或修复网络。
+
 ## 1. 发现，不改变网络
 
 确认 AI 具有本机终端能力，用户能进行接线及本地管理员认证。上游认证由用户和 macOS 完成，不读取密码。先检查是否已有本项目、其他网关、互联网共享、VPN 或 PF 管理程序正在运行；已有工作部署不能直接迁移到本实验安装包。
