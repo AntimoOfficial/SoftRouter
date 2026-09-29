@@ -1,4 +1,6 @@
-<!doctype html><html lang="zh-CN"><meta charset="utf-8"><style>body{font:15px -apple-system,sans-serif;line-height:1.7;color:#202530;padding:18px}h1{font-size:26px}</style>
-<h1>配置助手已安装</h1>
-<p>打开「应用程序 → SoftRouter」。</p><ol><li>点击「部署指南」，让 AI 为目标 Mac 准备闲置下游接口，并生成 gateway.conf。</li><li>导入配置，核对设备与地址，然后点击「安装网关」。</li><li>管理员密码只在 macOS 授权提示中输入。</li><li>确认状态为 RUNNING 后接到路由器 WAN，设置 WAN 和 DNS，再用下游设备测试网页。</li></ol>
-<p>已有网关不会自动迁移。安装应用成功不代表网关已启用，也不代表下游已经联网。</p></html>
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><style>
+body{font:14px -apple-system,sans-serif;line-height:1.7;color:#202b37;padding:18px 24px;margin:0}header{display:flex;align-items:center;gap:16px;margin-bottom:18px}img{width:76px;height:76px}h1{font-size:26px;margin:0}header p{margin:2px 0;color:#566578}.card{padding:16px 18px;border:1px solid #dce4eb;border-radius:14px;background:#f6f9fc}ol{padding-left:22px}li{margin:7px 0}.note{font-size:12px;color:#697586}@media(prefers-color-scheme:dark){body{color:#e4eaf0}.card{background:#24303e;border-color:#364354}header p,.note{color:#adbac7}}
+</style><header><img src="SoftRouterIcon.png" alt="SoftRouter"><div><h1>SoftRouter 已安装</h1><p>打开「应用程序 → SoftRouter」。</p></div></header>
+<div class="card"><b>已有网络，先做诊断</b><p>生成诊断报告即可检查当前状态。无需重新安装网关或输入管理员密码。</p></div>
+<p><b>首次配置共享</b></p><ol><li>阅读部署指南，让 AI 核对本机接口并生成配置；确认上游自动加入开启、下游 Wi-Fi 自动加入关闭。</li><li>导入配置并核对，在应用内授权安装。管理员密码只在系统提示中输入。</li><li>确认服务状态后连接路由器 WAN，设置 WAN 和 DNS，用真实下游设备验证网页。</li></ol>
+<p class="note">应用安装成功不代表网关已启用或下游已联网。已有部署保持原状，不自动迁移。</p></html>

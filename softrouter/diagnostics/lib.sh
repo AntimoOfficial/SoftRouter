@@ -5,6 +5,8 @@ LC_ALL=C
 export LC_ALL
 valid_interface() { [[ "$1" =~ ^en[0-9]+$ ]]; }
 valid_label() { [[ "$1" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$ ]]; }
+# LC_ALL=C makes this the SSID byte length; shell metacharacters remain literal data.
+valid_ssid() { [ -n "$1" ] && [ "${#1}" -le 32 ] && [[ ! "$1" =~ [[:cntrl:]] ]]; }
 valid_url() {
   # No credentials, query strings, fragments, whitespace or shell/Markdown syntax.
   # Targets are explicitly chosen public HTTP(S) pages, never a private subscription.
@@ -49,6 +51,38 @@ observation() {
 }
 field() { /usr/bin/awk -F= -v key="$2" '$1==key {sub(/^[^=]*=/, ""); print; exit}' "$1"; }
 launch_field() { /usr/bin/awk -v key="$2" '$1==key && $2=="=" {sub(/^[^=]*= */, "");print;exit}' "$1"; }
+analyze_ssid() {
+  local expected=$1 line= actual=
+  # A successful exit alone is insufficient: newer macOS may hide Wi-Fi identity.
+  # Keep only comparison evidence, never the expected or observed network name.
+  if ! command_ok upstream_ssid; then
+    record upstream_ssid unknown '未取得 Wi-Fi 名称；命令失败、超时或权限不足，不能判断匹配'
+    return
+  fi
+  if [ "$(/usr/bin/awk 'END {print NR}' "$WORK/upstream_ssid.out")" != 1 ]; then
+    record upstream_ssid unknown 'Wi-Fi 查询输出格式不可识别；不能判断匹配'
+    return
+  fi
+  IFS= read -r line < "$WORK/upstream_ssid.out" || [ -n "$line" ] || :
+  case "$line" in
+    'Current Wi-Fi Network: '*|'Current AirPort Network: '*)
+      actual=${line#*: }
+      case "$actual" in
+        '<redacted>'|'<unknown>'|'(null)'|'[redacted]'|'')
+          record upstream_ssid unknown '系统隐藏或未提供 Wi-Fi 名称；不能判断匹配'; return ;;
+      esac
+      if ! valid_ssid "$actual"; then
+        record upstream_ssid unknown 'Wi-Fi 查询值不可识别；不能判断匹配'
+      elif [ "$actual" = "$expected" ]; then
+        record upstream_ssid observed '当前上游 Wi-Fi 与显式期望名称一致；未保留名称，未验证互联网可用性'
+      else
+        record upstream_ssid attention '当前上游 Wi-Fi 与显式期望名称不一致；可能已切入错误网络，未保留名称'
+      fi ;;
+    'You are not associated with an AirPort network.'|'You are not associated with a Wi-Fi network.')
+      record upstream_ssid attention '系统报告所选上游未关联 Wi-Fi；当前未满足期望连接' ;;
+    *) record upstream_ssid unknown 'Wi-Fi 查询输出格式不可识别或受系统权限限制；不能判断匹配' ;;
+  esac
+}
 analyze_service() {
   local state pid recorded worker boot current_boot worker_ppid live_state forwarding
   state=$(launch_field "$WORK/launch.out" state)

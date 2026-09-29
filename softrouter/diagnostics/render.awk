@@ -6,6 +6,7 @@ BEGIN {
   labels["worker"]="转发进程（PID / PPID / 运行时长 / 启动时间）"; labels["enabled"]="开机启动"; labels["boot_time"]="系统启动时间"
   labels["forwarding"]="IPv4 转发"; labels["route"]="默认出口"; labels["route_binding"]="出口一致性"
   labels["upstream"]="选定/观察到的上游"; labels["upstream_link"]="上游链路"; labels["lease"]="DHCP 租约"
+  labels["upstream_ssid"]="上游 Wi-Fi 名称一致性"
   labels["downstream"]="选定下游"; labels["downstream_link"]="下游链路"; labels["counters"]="下游累计计数"
   labels["dns"]="系统 DNS（所有作用域）"; labels["proxy"]="系统代理设置"; labels["power"]="睡眠设置"; labels["battery"]="供电状态"
   labels["gateway_log"]="网关日志元信息"; labels["error_log"]="错误日志元信息"; labels["pf"]="实时 PF"

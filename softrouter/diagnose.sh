@@ -11,6 +11,7 @@ usage() {
   cat <<'EOF'
 Usage: /bin/bash diagnose.sh [--days 1..7] [--output-dir EXISTING_DIRECTORY]
        [--upstream enN] [--downstream enN] [--url PUBLIC_HTTP_URL ...]
+       [--expected-ssid WIFI_NETWORK_NAME]
        [--proxy http://127.0.0.1:PORT] [--skip-history]
        [--label LAUNCHD_LABEL] [--log-dir ABSOLUTE_DIRECTORY]
 Defaults: 3 days, current directory, org.softrouter.gateway, /Library/Logs/SoftRouter.
@@ -18,17 +19,20 @@ No sudo. Output: a new private directory with report.md, report.json and evidenc
 No web probes unless --url is provided (maximum five). --proxy adds a local proxy comparison.
 URLs cannot contain credentials, query strings or fragments. No passwords or subscriptions.
 A complete report does not mean a healthy network. Missing evidence is reported as unknown.
+--expected-ssid compares the selected upstream with an explicit Wi-Fi name (1..32 bytes).
+SSID names are not retained in the report; without this option no SSID query is made.
 EOF
 }
 fail() { printf 'SoftRouter diagnosis: %s\n' "$*" >&2; exit 2; }
 DAYS=3; OUTPUT=$PWD; UPSTREAM=; DOWNSTREAM=; PROXY=; HISTORY=1
+EXPECTED_SSID=
 LABEL=org.softrouter.gateway; LOGS=/Library/Logs/SoftRouter
 URLS=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --skip-history) HISTORY=0; shift; continue ;;
-    --days|--output-dir|--upstream|--downstream|--url|--proxy|--label|--log-dir)
+    --days|--output-dir|--upstream|--downstream|--expected-ssid|--url|--proxy|--label|--log-dir)
       [ "$#" -ge 2 ] && [ -n "$2" ] || fail 'Missing argument.' ;;
     *) fail 'Unknown option. Use --help.' ;;
   esac
@@ -37,6 +41,7 @@ while [ "$#" -gt 0 ]; do
     --output-dir) OUTPUT=$2 ;;
     --upstream) valid_interface "$2" || fail 'Expected an en-number interface.'; UPSTREAM=$2 ;;
     --downstream) valid_interface "$2" || fail 'Expected an en-number interface.'; DOWNSTREAM=$2 ;;
+    --expected-ssid) valid_ssid "$2" || fail 'Expected a Wi-Fi name of 1 through 32 bytes without control characters.'; EXPECTED_SSID=$2 ;;
     --url) valid_url "$2" || fail 'Expected a public HTTP(S) URL without credentials, query or fragment.'; URLS+=("$2") ;;
     --proxy) valid_proxy "$2" || fail 'Only an explicitly selected loopback HTTP proxy is supported.'; PROXY=$2 ;;
     --label) valid_label "$2" || fail 'Invalid launchd label.'; LABEL=$2 ;;
@@ -98,13 +103,21 @@ if [ -z "$UPSTREAM" ]; then
 fi
 if [ -z "$DOWNSTREAM" ]; then DOWNSTREAM=$(field "$WORK/status.out" downstream_interface); fi
 if valid_interface "$UPSTREAM"; then
-  record upstream observed "$UPSTREAM（显式指定、状态文件或当前默认接口；未验证 SSID 绑定）"
+  record upstream observed "$UPSTREAM（显式指定、状态文件或当前默认接口）"
   if [ -n "$route_iface" ] && [ "$route_iface" != "$UPSTREAM" ]; then record route_binding attention '默认出口与选定上游接口不一致'; fi
   run_bounded upstream_link 4 /sbin/ifconfig "$UPSTREAM"
   run_bounded lease 4 /usr/sbin/ipconfig getsummary "$UPSTREAM"
   observation upstream_link "$(awk '/status:|^[[:space:]]*inet /{print}' "$WORK/upstream_link.out")"
   observation lease "$(awk '/LeaseStartTime :|LeaseExpirationTime :|State : BOUND|RouterARPVerified :/{print}' "$WORK/lease.out")"
-else record upstream unknown '未识别到 en 接口；不猜测上游'; fi
+  if [ -n "$EXPECTED_SSID" ]; then
+    run_bounded upstream_ssid 4 /usr/sbin/networksetup -getairportnetwork "$UPSTREAM"
+    analyze_ssid "$EXPECTED_SSID"
+  fi
+else
+  record upstream unknown '未识别到 en 接口；不猜测上游'
+  if [ -n "$EXPECTED_SSID" ]; then record upstream_ssid unknown '没有可检查的上游接口；未验证期望 Wi-Fi'; fi
+fi
+if [ -z "$EXPECTED_SSID" ]; then record upstream_ssid unverified '未提供期望 Wi-Fi；未查询或验证 SSID'; fi
 if valid_interface "$DOWNSTREAM"; then
   record downstream observed "$DOWNSTREAM"
   run_bounded downstream_link 4 /sbin/ifconfig "$DOWNSTREAM"

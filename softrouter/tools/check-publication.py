@@ -2,10 +2,20 @@
 """Validate an explicit publication manifest against disk, the index, or HEAD."""
 import argparse
 import fnmatch
+import hashlib
 import pathlib
 import re
+import struct
 import subprocess
 import sys
+import zlib
+
+ICON_PATH = 'softrouter/macos/assets/SoftRouterIcon.png'
+PNG_LIMIT = 16 * 1024 * 1024
+# Exact reviewed C2PA body for ICON_PATH only; new provenance needs explicit review.
+ICON_PROVENANCE_SHA256 = frozenset({
+    'f96062903499119f5dcc9458e45670349d3db4d313083573fb05ffcc1bd6a900',
+})
 
 ROOT_FILES = {
     '.gitignore', 'README.md', 'AGENTS.md', 'LICENSE', 'CONTRIBUTING.md',
@@ -41,6 +51,88 @@ def check_path(name):
         raise ValueError('Private/generated directory: ' + name)
     if any(fnmatch.fnmatchcase(path.name, pat) for pat in FORBIDDEN):
         raise ValueError('Private/generated filename: ' + name)
+
+
+def validate_icon_png(data):
+    """Accept one bounded, noninterlaced RGB/RGBA icon without text metadata."""
+    def invalid():
+        raise ValueError('Invalid or unsupported public icon PNG')
+
+    if len(data) > PNG_LIMIT or not data.startswith(b'\x89PNG\r\n\x1a\n'):
+        invalid()
+    offset = 8
+    width = height = channels = None
+    seen = set()
+    pixel_chunks = []
+    pixels_started = False
+    pixels_finished = False
+    ended = False
+    metadata_lengths = {b'sRGB': 1, b'gAMA': 4, b'pHYs': 9, b'cHRM': 32}
+    while offset < len(data):
+        if len(data) - offset < 12:
+            invalid()
+        length = struct.unpack_from('>I', data, offset)[0]
+        kind = data[offset + 4:offset + 8]
+        end = offset + length + 12
+        if length > PNG_LIMIT or end > len(data):
+            invalid()
+        payload = data[offset + 8:end - 4]
+        checksum = struct.unpack_from('>I', data, end - 4)[0]
+        if zlib.crc32(kind + payload) & 0xffffffff != checksum:
+            invalid()
+        if offset == 8 and kind != b'IHDR':
+            invalid()
+        if kind == b'IHDR':
+            if kind in seen or offset != 8 or length != 13:
+                invalid()
+            width, height, depth, color, compression, filtering, interlace = struct.unpack('>IIBBBBB', payload)
+            if (width != height or not 1024 <= width <= 4096 or depth != 8
+                    or color not in (2, 6) or compression != 0 or filtering != 0 or interlace != 0):
+                invalid()
+            channels = 3 if color == 2 else 4
+        elif kind == b'IDAT':
+            if pixels_finished:
+                invalid()
+            pixels_started = True
+            pixel_chunks.append(payload)
+        elif kind == b'IEND':
+            if length != 0 or not pixels_started or end != len(data):
+                invalid()
+            ended = True
+        elif kind == b'caBX':
+            if (kind in seen or pixels_started or not 0 < length <= 65536
+                    or hashlib.sha256(payload).hexdigest() not in ICON_PROVENANCE_SHA256):
+                invalid()
+        elif kind in metadata_lengths:
+            if kind in seen or pixels_started or length != metadata_lengths[kind]:
+                invalid()
+            if kind == b'sRGB' and payload[0] > 3:
+                invalid()
+            if kind == b'gAMA' and struct.unpack('>I', payload)[0] == 0:
+                invalid()
+            if kind == b'pHYs' and payload[8] not in (0, 1):
+                invalid()
+        else:
+            # No EXIF, comments, embedded profiles, palettes, animation or unknown chunks.
+            invalid()
+        if pixels_started and kind != b'IDAT':
+            pixels_finished = True
+        seen.add(kind)
+        offset = end
+    if not ended:
+        invalid()
+    stride = 1 + width * channels
+    expected = height * stride
+    try:
+        decoder = zlib.decompressobj()
+        pixels = decoder.decompress(b''.join(pixel_chunks), expected + 1)
+    except zlib.error:
+        invalid()
+    if (len(pixels) != expected or not decoder.eof
+            or decoder.unused_data or decoder.unconsumed_tail):
+        invalid()
+    if any(pixels[row] > 4 for row in range(0, expected, stride)):
+        invalid()
 
 
 def validate(root, mode):
@@ -97,9 +189,12 @@ def validate(root, mode):
                 raise ValueError('Non-regular Git file: ' + name)
     for name in names:
         data = read(name)
-        if len(data) > 1024 * 1024 or b'\0' in data:
-            raise ValueError('Binary or oversized release input: ' + name)
-        data.decode('utf-8')
+        if name == ICON_PATH:
+            validate_icon_png(data)
+        else:
+            if len(data) > 1024 * 1024 or b'\0' in data:
+                raise ValueError('Binary or oversized release input: ' + name)
+            data.decode('utf-8')
         for description, pattern in PATTERNS:
             if pattern.search(data):
                 # Never print the matched value.

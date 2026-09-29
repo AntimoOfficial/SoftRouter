@@ -53,6 +53,20 @@ for architecture in arm64 x86_64; do
     "$source/macos/SoftRouter.swift" -o "$scratch/SoftRouter-$architecture"
 done
 /usr/bin/lipo -create "$scratch/SoftRouter-arm64" "$scratch/SoftRouter-x86_64" -output "$app/Contents/MacOS/SoftRouter"
+# Preserve the generated source artwork; create standard macOS icon sizes at build time.
+cp "$source/macos/assets/SoftRouterIcon.png" "$app/Contents/Resources/SoftRouterIcon.png"
+iconset="$scratch/SoftRouter.iconset"
+mkdir "$iconset"
+for points in 16 32 128 256 512; do
+  for scale in 1 2; do
+    pixels=$((points * scale))
+    suffix=
+    [ "$scale" = 1 ] || suffix=@2x
+    /usr/bin/sips -z "$pixels" "$pixels" "$source/macos/assets/SoftRouterIcon.png" \
+      --out "$iconset/icon_${points}x${points}${suffix}.png" >/dev/null
+  done
+done
+/usr/bin/iconutil -c icns "$iconset" -o "$app/Contents/Resources/SoftRouter.icns"
 for file in install.sh gateway.sh gatewayctl config.sh org.softrouter.gateway.plist diagnose.sh diagnostics/lib.sh diagnostics/render.awk; do
   cp "$source/$file" "$app/Contents/Resources/core/$file"
 done
@@ -76,8 +90,11 @@ PY
 /usr/bin/pkgbuild --root "$scratch/root" --ownership recommended --install-location / \
   --component-plist "$scratch/components.plist" --identifier org.softrouter.installer \
   --version "$numeric" "$scratch/SoftRouter-component.pkg"
+mkdir "$scratch/installer-resources"
+cp "$source/macos/resources/Welcome.html" "$source/macos/resources/Conclusion.html" "$scratch/installer-resources/"
+cp "$source/macos/assets/SoftRouterIcon.png" "$scratch/installer-resources/SoftRouterIcon.png"
 /usr/bin/productbuild --distribution "$source/macos/Distribution.xml" \
-  --resources "$source/macos/resources" --package-path "$scratch" "$output"
+  --resources "$scratch/installer-resources" --package-path "$scratch" "$output"
 python3 "$source/tools/verify-macos.py" "$output"
 (cd "$REPO/dist" && shasum -a 256 "$(basename "$output")" > "$(basename "$output").sha256")
 # Preserve one disposable GUI preview; this is not installed or started.

@@ -37,6 +37,8 @@ softrouter/install.sh
 softrouter/macos/Distribution.xml
 softrouter/macos/Info.plist
 softrouter/macos/SoftRouter.swift
+softrouter/macos/assets/SoftRouterIcon.png
+softrouter/macos/assets/README.md
 softrouter/macos/gui-install.sh
 softrouter/macos/resources/Conclusion.html
 softrouter/macos/resources/Welcome.html

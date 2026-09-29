@@ -6,9 +6,10 @@
 <key>CFBundleName</key><string>SoftRouter</string>
 <key>CFBundleDisplayName</key><string>SoftRouter</string>
 <key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleIconFile</key><string>SoftRouter.icns</string>
 <key>CFBundleShortVersionString</key><string>0.1.0</string>
-<key>CFBundleVersion</key><string>0.1.0.3</string>
-<key>SoftRouterReleaseVersion</key><string>0.1.0-alpha.3</string>
+<key>CFBundleVersion</key><string>0.1.0.4</string>
+<key>SoftRouterReleaseVersion</key><string>0.1.0-alpha.4</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

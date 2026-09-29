@@ -31,6 +31,21 @@ with tempfile.TemporaryDirectory(prefix='softrouter-pkg-check-') as temp:
     metadata = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
     assert metadata['CFBundleIdentifier'] == 'org.softrouter.setup'
     assert metadata['LSMinimumSystemVersion'] == '14.0'
+    assert metadata['CFBundleIconFile'] == 'SoftRouter.icns'
+    resources = app / 'Contents/Resources'
+    assert (resources / 'SoftRouterIcon.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+    icon_bytes = (resources / 'SoftRouter.icns').read_bytes()
+    assert icon_bytes[:4] == b'icns' and int.from_bytes(icon_bytes[4:8], 'big') == len(icon_bytes)
+    iconset = pathlib.Path(temp) / 'AppIcon.iconset'
+    subprocess.run(['/usr/bin/iconutil', '-c', 'iconset', '-o', str(iconset), str(resources / 'SoftRouter.icns')], check=True)
+    for points in (16, 32, 128, 256, 512):
+        for scale in (1, 2):
+            suffix = '' if scale == 1 else '@2x'
+            icon = iconset / f'icon_{points}x{points}{suffix}.png'
+            data = icon.read_bytes()
+            assert data[:8] == b'\x89PNG\r\n\x1a\n' and data[12:16] == b'IHDR'
+            assert int.from_bytes(data[16:20], 'big') == points * scale
+            assert int.from_bytes(data[20:24], 'big') == points * scale
     core = app / 'Contents/Resources/core'
     assert {p.name for p in core.iterdir()} == {
         'gui-install.sh', 'install.sh', 'gateway.sh', 'gatewayctl', 'config.sh', 'org.softrouter.gateway.plist', 'diagnose.sh', 'diagnostics'
