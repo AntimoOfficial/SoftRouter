@@ -1,5 +1,7 @@
 # SoftRouter
 
+本页说明 macOS PF 后端。Windows/Linux 测试版使用独立系统共享后端，见 [跨平台安装](docs/platforms.md)。当前发布入口为 [Release](https://github.com/AntimoOfficial/SoftRouter/releases/latest)。
+
 仓库总入口见 [README](../README.md)，AI 部署从 [操作手册](docs/ai-setup.md) 开始。本文命令在 `softrouter/` 目录执行；本目录以外的个人运维资料不属于发布包。
 
 将一台保持唤醒的 Mac 作为 IPv4 网关：通过 Wi-Fi 接入上游网络，再通过独立以太网接口连接下游路由器的 WAN 口。下游设备连接路由器的 LAN 或 Wi-Fi。

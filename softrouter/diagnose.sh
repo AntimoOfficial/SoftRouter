@@ -85,6 +85,11 @@ run_bounded dns 4 /usr/sbin/scutil --dns
 run_bounded proxy 4 /usr/sbin/scutil --proxy
 run_bounded power 4 /usr/bin/pmset -g
 run_bounded battery 4 /usr/bin/pmset -g batt
+run_bounded power_custom 4 /usr/bin/pmset -g custom
+# Restrict the registry query to the power root. Only the lid property is retained.
+run_bounded lid 4 /usr/sbin/ioreg -r -c IOPMrootDomain -d 1
+analyze_power
+analyze_lid
 for role in guardian worker; do
   pid=$(field "$WORK/status.out" "${role}_pid")
   if [[ "$pid" =~ ^[1-9][0-9]{0,8}$ ]]; then
@@ -125,6 +130,7 @@ if valid_interface "$DOWNSTREAM"; then
   observation downstream_link "$(awk '/status:|media:|^[[:space:]]*inet /{print}' "$WORK/downstream_link.out")"
   observation counters "$(awk '/<Link#/{print "in_packets=" $5 "; in_errors=" $6 "; in_bytes=" $7 "; out_packets=" $8 "; out_errors=" $9 "; out_bytes=" $10}' "$WORK/counters.out")"
 else record downstream unknown '未提供下游接口且状态文件没有接口字段；请核对后传 --downstream'; fi
+analyze_downstream_speed
 observation dns "$(awk '/nameserver\[[0-9]+\]/{print $3}' "$WORK/dns.out" | sort -u | tr '\n' ' ')"
 observation proxy "$(awk '$1 ~ /^(HTTPEnable|HTTPSEnable|HTTPProxy|HTTPPort|HTTPSProxy|HTTPSPort|SOCKSEnable|ProxyAutoConfigEnable)$/ {print $1 "=" $3}' "$WORK/proxy.out")"
 observation power "$(awk '/SleepDisabled|^[[:space:]]*sleep /{print $1 "=" $2}' "$WORK/power.out")"

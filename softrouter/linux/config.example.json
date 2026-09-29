@@ -1,0 +1,7 @@
+{
+  "upstream_interface": "REPLACE_UPLINK",
+  "upstream_mac": "REPLACE_WITH_ACTUAL_MAC",
+  "downstream_interface": "REPLACE_DOWNLINK",
+  "downstream_mac": "REPLACE_WITH_ACTUAL_MAC",
+  "downstream_address": "REPLACE_WITH_UNUSED_PRIVATE_HOST/24"
+}

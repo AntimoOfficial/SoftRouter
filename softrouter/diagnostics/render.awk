@@ -9,6 +9,7 @@ BEGIN {
   labels["upstream_ssid"]="上游 Wi-Fi 名称一致性"
   labels["downstream"]="选定下游"; labels["downstream_link"]="下游链路"; labels["counters"]="下游累计计数"
   labels["dns"]="系统 DNS（所有作用域）"; labels["proxy"]="系统代理设置"; labels["power"]="睡眠设置"; labels["battery"]="供电状态"
+  labels["power_source"]="当前供电来源"; labels["sleep_policy"]="睡眠策略解释"; labels["lid_state"]="当前机盖状态"; labels["downstream_speed"]="下游链路速率"
   labels["gateway_log"]="网关日志元信息"; labels["error_log"]="错误日志元信息"; labels["pf"]="实时 PF"
   labels["downstream_access"]="真实下游访问"; labels["history"]="历史检索完成情况"
 }
@@ -31,7 +32,7 @@ function safe(s) {
   gsub(/\|/,"/",s); gsub(/`/,"'",s); gsub(/[[:cntrl:]]/," ",s)
   return s
 }
-FILENAME ~ /facts.tsv$/ { n++; keys[n]=$1; states[n]=$2; values[n]=$3; if($2=="attention") attention++; if($2=="unknown" || $2=="unverified") unknown++; next }
+FILENAME ~ /facts.tsv$/ { n++; keys[n]=$1; states[n]=$2; values[n]=$3; fact_states[$1]=$2; fact_values[$1]=$3; if($2=="attention") attention++; if($2=="unknown" || $2=="unverified") unknown++; next }
 FILENAME ~ /events.tsv$/ { e++; times[e]=$1; kinds[e]=$2; next }
 FILENAME ~ /probes.tsv$/ {
   p++; urls[p]=$1; modes[p]=$2; codes[p]=$3; http[p]=$4; elapsed[p]=$5
@@ -43,6 +44,14 @@ FILENAME ~ /probes.tsv$/ {
 END {
   print "# SoftRouter 网络诊断报告" > md
   print "\n这是当前状态和留存事件的只读快照，不是持续监控或自动修复。报告生成成功不等于网络健康。" > md
+  print "\n## 证据摘要\n\n| 维度 | 当前结论 |\n|---|---|" > md
+  print "| 网关服务 | " safe(("service" in fact_states)?fact_states["service"] "；" fact_values["service"]:"unknown；未取得服务证据") " |" > md
+  completed=0
+  for(i=1;i<=p;i++) if(codes[i]=="0" && http[i] ~ /^[23][0-9][0-9]$/) completed++
+  print "| Mac 上的网页请求 | " (completed?"部分入口传输成功；页面内容与登录功能未验收":p?"未取得入口传输成功证据；不能只归因于网关":"unverified；未进行网页请求") " |" > md
+  print "| 真实下游访问 | unverified；本报告未从下游客户端测量，不能由服务状态、Mac 请求或链路速率推定 |" > md
+  print "\n当前供电与合盖：" safe(("power_source" in fact_values)?fact_values["power_source"]:"unknown") "；" safe(("lid_state" in fact_values)?fact_values["lid_state"]:"unknown") "。" > md
+  print "\n睡眠策略：" safe(("sleep_policy" in fact_values)?fact_values["sleep_policy"]:"unknown；未取得睡眠策略证据") "。" > md
   print "\n## 当前证据\n\n| 检查项 | 证据状态 | 观察结果 |\n|---|---|---|" > md
   for(i=1;i<=n;i++) print "| " safe((keys[i] in labels)?labels[keys[i]]:keys[i]) " | " safe(states[i]) " | " safe(values[i]) " |" > md
   print "\nobserved 表示取得证据；attention 表示发现需核实的不一致；unknown 表示未取得有效证据；unverified 表示未进行该项验收。" > md
@@ -56,6 +65,7 @@ END {
     print "| URL | 路径 | curl 返回码 | HTTP | 总耗时（秒） | 判断 |\n|---|---|---|---|---|---|" > md
     for(i=1;i<=p;i++) print "| " safe(urls[i]) " | " modes[i] " | " codes[i] " | " http[i] " | " elapsed[i] " | " outcomes[i] " |" > md
   } else print "未指定公开站点，本次没有发送网页测试请求。" > md
+  print "\n## 合盖实测记录（可选人工填写）\n\n以下为空白记录，不是本次快照的自动测量结果；填写后也不会改变 JSON 中的 downstream_verified。\n\n| 记录项 | 人工记录 |\n|---|---|\n| 开始时间 / 结束时间（含时区） | 未填写 |\n| 合盖期间是否始终接电 | 未核实 |\n| 实测设备及其下游连接 | 未填写 |\n| 蜂窝或其他备用出口是否关闭 | 未核实 |\n| 实测期间全局 SleepDisabled 值 | 未核实；上方策略仅代表采集时状态 |\n| 实際访问的公开站点与操作 | 未填写 |\n| 实际结果及中断情况 | unverified；未记录真实下游实测结果 |" > md
   print "\n## 结论边界\n\n- RUNNING、进程存活、上游可达和真实下游可用是不同结论。下游仍需用户或有权限的客户端独立验证。\n- 进程运行时长不等于互联网在线时长；状态文件时间是事件更新时间，不是心跳。\n- 网卡错误计数不是丢包率；协商速率不是测速结果；同一 PID 也不证明期间没有 Wi-Fi 瞬断。\n- 只列出实际事件，不计算没有连续采样支持的可用率，不宣称认证失败根因已消失。\n- 未读取代理订阅、密码、完整系统网络偏好、私有恢复目录或实时 PF 规则；不会自动上传报告。\n- 报告仍可能包含 IP、代理地址、接口、进程号和用户选择的站点，公开前人工脱敏。" > md
   print "{\"schema_version\":1,\"kind\":\"read_only_snapshot\",\"facts\":[" > js
   for(i=1;i<=n;i++) print (i>1?",":"") "{\"id\":" json(keys[i]) ",\"state\":" json(states[i]) ",\"value\":" json(values[i]) "}" > js

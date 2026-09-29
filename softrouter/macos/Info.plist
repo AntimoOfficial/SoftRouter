@@ -1,15 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>CFBundleExecutable</key><string>SoftRouter</string>
-<key>CFBundleIdentifier</key><string>org.softrouter.setup</string>
-<key>CFBundleName</key><string>SoftRouter</string>
-<key>CFBundleDisplayName</key><string>SoftRouter</string>
-<key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleIconFile</key><string>SoftRouter.icns</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
-<key>CFBundleVersion</key><string>0.1.0.4</string>
-<key>SoftRouterReleaseVersion</key><string>0.1.0-alpha.4</string>
-<key>LSMinimumSystemVersion</key><string>14.0</string>
-<key>NSHighResolutionCapable</key><true/>
-</dict></plist>
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>SoftRouter</string>
+	<key>CFBundleExecutable</key>
+	<string>SoftRouter</string>
+	<key>CFBundleIconFile</key>
+	<string>SoftRouter.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.softrouter.setup</string>
+	<key>CFBundleName</key>
+	<string>SoftRouter</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>0.1.0.5</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>SoftRouterReleaseVersion</key>
+	<string>0.1.0-alpha.5</string>
+</dict>
+</plist>

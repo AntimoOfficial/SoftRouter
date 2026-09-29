@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SoftRouter Linux Test
+Comment=Experimental NetworkManager internet sharing controller
+Exec=/usr/bin/python3 /opt/softrouter/app.py
+Icon=/usr/share/pixmaps/softrouter.png
+Terminal=false
+Categories=Network;Settings;
+StartupNotify=true

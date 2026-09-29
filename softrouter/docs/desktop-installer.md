@@ -1,6 +1,8 @@
 # 双击安装预览版
 
-从 [Releases](https://github.com/AntimoOfficial/SoftRouter/releases) 下载 `SoftRouter-0.1.0-alpha.4-unsigned.pkg`。这是包含 Apple Silicon 与 Intel 架构的 macOS 14+ 安装包，运行时不需要 Git、Python、Xcode 或终端脚本。
+本文适用于 macOS。Windows/Linux 的图形测试版与安装入口见 [平台指南](platforms.md)。macOS `0.1.0-alpha.5` 增加诊断证据摘要，分别展示供电与合盖、睡眠策略、主机网页请求及未独立验收的下游；这些是诊断快照，不是持续联网指示灯。
+
+从 [Releases](https://github.com/AntimoOfficial/SoftRouter/releases/latest) 下载 `SoftRouter-0.1.0-alpha.5-unsigned.pkg`。这是包含 Apple Silicon 与 Intel 架构的 macOS 14+ 安装包，运行时不需要 Git、Python、Xcode 或终端脚本。
 
 ## 安装流程
 

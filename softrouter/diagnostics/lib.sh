@@ -51,6 +51,110 @@ observation() {
 }
 field() { /usr/bin/awk -F= -v key="$2" '$1==key {sub(/^[^=]*=/, ""); print; exit}' "$1"; }
 launch_field() { /usr/bin/awk -v key="$2" '$1==key && $2=="=" {sub(/^[^=]*= */, "");print;exit}' "$1"; }
+power_source_value() {
+  if ! command_ok battery || [ ! -r "$WORK/battery.out" ]; then printf 'unknown\n'; return; fi
+  # The exact first-line header is authoritative; mentions inside battery details are not.
+  /usr/bin/awk '
+    NR==1 {
+      if($0=="Now drawing from \047AC Power\047") source="AC"
+      else if($0=="Now drawing from \047Battery Power\047") source="battery"
+      else if($0=="Now drawing from \047UPS Power\047") source="UPS"
+    }
+    /^Now drawing from/ {headers++}
+    END {print (source!="" && headers==1)?source:"unknown"}
+  ' "$WORK/battery.out"
+}
+power_setting_value() {
+  local name=$1 key=$2 profile=${3:-}
+  if ! command_ok "$name" || [ ! -r "$WORK/$name.out" ]; then printf 'unknown\n'; return; fi
+  # Multiple, malformed or missing values are unknown, even if one line looks valid.
+  /usr/bin/awk -v key="$key" -v profile="$profile" '
+    /^[^[:space:]].*:$/ {section=$0; sub(/:$/, "", section); if(section==profile) sections++}
+    $1==key && (profile=="" || section==profile) {
+      count++; line=$0
+      if(key=="SleepDisabled") {
+        if(line ~ /^[[:space:]]*SleepDisabled[[:space:]]+[01][[:space:]]*$/) value=$2
+      } else if(line ~ /^[[:space:]]*sleep[[:space:]]+[0-9]+([[:space:]]+\(sleep prevented by [^)]+\))?[[:space:]]*$/ && length($2)<=9) value=$2
+    }
+    END {print (count==1 && value!="" && (profile=="" || sections==1))?value:"unknown"}
+  ' "$WORK/$name.out"
+}
+analyze_power() {
+  local source global idle profile configured prefix state
+  source=$(power_source_value)
+  if [ "$source" = unknown ]; then
+    record power_source unknown 'unknown；供电来源缺失、矛盾、格式不可识别，或命令失败/超时'
+  else record power_source observed "$source"; fi
+  global=$(power_setting_value power SleepDisabled)
+  idle=$(power_setting_value power sleep)
+  case "$source" in
+    AC) profile='AC Power' ;;
+    battery) profile='Battery Power' ;;
+    UPS) profile='UPS Power' ;;
+    *) profile= ;;
+  esac
+  configured=unknown
+  [ -z "$profile" ] || configured=$(power_setting_value power_custom sleep "$profile")
+  if [ "$global" = unknown ] || [ "$idle" = unknown ] || [ "$source" = unknown ] || [ "$configured" = unknown ]; then
+    record sleep_policy unknown '无法完整核实供电来源、整机全局禁睡与对应闲置睡眠设置；缺失、格式异常或命令失败/超时不能解释为合盖支持'
+    return
+  fi
+  if [ "$idle" != "$configured" ]; then
+    record sleep_policy unknown '当前闲置睡眠值与对应供电配置不一致；可能在采集期间切换供电或设置，未判断合盖支持'
+    return
+  fi
+  if [ "$idle" = 0 ]; then prefix="$source 闲置睡眠计时为 0（不因闲置计时进入睡眠）"
+  else prefix="$source 闲置睡眠计时为 $idle 分钟"; fi
+  state=observed
+  if [ "$global" = 1 ]; then
+    prefix="SleepDisabled=1，整机全局禁睡已开启，并非仅限接电；$prefix"
+    case "$source" in
+      battery) state=attention; prefix="$prefix；当前正在使用电池，全局禁睡可能持续耗电，不能套用持续接电的合盖实测结论" ;;
+      UPS) state=attention; prefix="$prefix；当前由 UPS 供电，不能视为持续交流供电或长期运行保证" ;;
+      AC) prefix="$prefix；当前接电仅为瞬时观察，未验证合盖期间供电连续性" ;;
+    esac
+  else prefix="SleepDisabled=0，未开启整机全局禁睡；$prefix"; fi
+  record sleep_policy "$state" "$prefix；闲置睡眠设置不能证明合盖、网卡持续工作或真实下游可用"
+}
+analyze_lid() {
+  local value=unknown
+  if command_ok lid && [ -r "$WORK/lid.out" ]; then
+    value=$(/usr/bin/awk '
+      /^[[:space:]|]*"AppleClamshellState"[[:space:]]*=/ {
+        count++
+        if($0 ~ /^[[:space:]|]*"AppleClamshellState"[[:space:]]*=[[:space:]]*Yes[[:space:]]*$/) value="closed"
+        else if($0 ~ /^[[:space:]|]*"AppleClamshellState"[[:space:]]*=[[:space:]]*No[[:space:]]*$/) value="open"
+      }
+      END {print (count==1 && value!="")?value:"unknown"}
+    ' "$WORK/lid.out")
+  fi
+  case "$value" in
+    open) record lid_state observed 'open；采集时机盖打开，未测量合盖期间状态' ;;
+    closed) record lid_state observed 'closed；采集时机盖关闭，瞬时状态不证明合盖期间下游持续可用' ;;
+    *) record lid_state unknown 'unknown；未取得唯一有效的机盖状态；可能无机盖、属性不可用或命令失败/超时' ;;
+  esac
+}
+analyze_downstream_speed() {
+  local speed=unknown
+  if command_ok downstream_link && [ -r "$WORK/downstream_link.out" ]; then
+    speed=$(/usr/bin/awk '
+      /^[[:space:]]*status:/ {statuses++; if($0 ~ /^[[:space:]]*status:[[:space:]]+active[[:space:]]*$/) active=1}
+      /^[[:space:]]*media:/ {
+        medias++; line=$0; sub(/^[[:space:]]*media:[[:space:]]*/, "", line)
+        if(line ~ /^autoselect[[:space:]]+\([^()]+\)[[:space:]]*$/) {
+          sub(/^autoselect[[:space:]]+\(/, "", line); sub(/\)[[:space:]]*$/, "", line)
+        }
+        if(tolower(line) ~ /^[1-9][0-9]*g?base[a-z0-9-]+([[:space:]]+<[a-z0-9,-]+>)?[[:space:]]*$/) {
+          sub(/[[:space:]].*$/, "", line); speed=line
+        }
+      }
+      END {print (statuses==1 && active && medias==1 && speed!="")?speed:"unknown"}
+    ' "$WORK/downstream_link.out")
+  fi
+  if [ "$speed" = unknown ]; then
+    record downstream_speed unknown 'unknown；未取得活动下游链路的明确速率；未指定接口、链路未激活、输出异常或命令失败/超时'
+  else record downstream_speed observed "$speed；采集时链路速率，不是吞吐测速或下游互联网验收"; fi
+}
 analyze_ssid() {
   local expected=$1 line= actual=
   # A successful exit alone is insufficient: newer macOS may hide Wi-Fi identity.

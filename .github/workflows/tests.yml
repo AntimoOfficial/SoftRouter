@@ -19,3 +19,28 @@ jobs:
         run: /bin/bash softrouter/tests/run.sh
       - name: Build and inspect the macOS installer without installing
         run: /bin/bash softrouter/tools/build-macos.sh
+  windows-offline:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Parse PowerShell and run mocked controller checks
+        shell: powershell
+        run: .\softrouter\windows\tests\Offline.Tests.ps1
+  linux-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Run mocked NetworkManager checks
+        run: python3 -m unittest discover -s softrouter/linux/tests -v
+      - name: Build app-only platform packages without installing
+        run: python3 softrouter/tools/build-portable.py --head
+      - name: Inspect Debian package without installation
+        run: |
+          dpkg-deb --info dist/*-linux-test_all.deb
+          dpkg-deb --contents dist/*-linux-test_all.deb

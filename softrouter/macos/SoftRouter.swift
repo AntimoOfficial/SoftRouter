@@ -1,5 +1,6 @@
 import AppKit
 import CryptoKit
+import Darwin
 
 enum SetupError: LocalizedError {
     case message(String)
@@ -69,6 +70,122 @@ enum Setup {
     }
 }
 
+struct DiagnosticSnapshot: Decodable {
+    struct Fact: Decodable {
+        let id: String
+        let state: String
+        let value: String
+    }
+    struct Probe: Decodable {
+        let curlExit: String?
+        let http: String?
+        enum CodingKeys: String, CodingKey { case curlExit = "curl_exit", http }
+        var transferred: Bool {
+            guard curlExit == "0", let http = http, http.count == 3,
+                  http.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }), let status = Int(http) else { return false }
+            return (200..<400).contains(status)
+        }
+    }
+    let schemaVersion: Int
+    let facts: [Fact]?
+    let probes: [Probe]?
+    enum CodingKeys: String, CodingKey { case schemaVersion = "schema_version", facts, probes }
+    static let maximumBytes = 1_048_576
+
+    static func decode(_ data: Data) throws -> DiagnosticSnapshot {
+        guard data.count <= maximumBytes else { throw SetupError.message("诊断摘要超过读取大小限制。") }
+        let report = try JSONDecoder().decode(Self.self, from: data)
+        guard report.schemaVersion == 1 else { throw SetupError.message("此报告版本尚不能显示摘要，请查看 Markdown 报告。") }
+        return report
+    }
+
+    static func directory(from output: String, selectedFolder: URL) throws -> URL {
+        let paths = output.components(separatedBy: "\n").filter { $0.hasPrefix("REPORT_DIR=") }
+        guard paths.count == 1 else { throw SetupError.message("未取得唯一的报告目录，请查看运行记录。") }
+        let path = String(paths[0].dropFirst("REPORT_DIR=".count))
+        let directory = URL(fileURLWithPath: path).standardizedFileURL
+        guard path.hasPrefix("/"), directory.deletingLastPathComponent().resolvingSymlinksInPath().path == selectedFolder.standardizedFileURL.resolvingSymlinksInPath().path else {
+            throw SetupError.message("报告目录不在所选保存位置，未读取摘要。")
+        }
+        return directory
+    }
+
+    static func load(from directory: URL) throws -> DiagnosticSnapshot {
+        // Open the exact new report without following a replaced directory or file symlink.
+        let folder = Darwin.open(directory.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard folder >= 0 else { throw SetupError.message("无法打开报告目录。") }
+        defer { Darwin.close(folder) }
+        let descriptor = openat(folder, "report.json", O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard descriptor >= 0 else { throw SetupError.message("无法读取诊断摘要，请查看 Markdown 报告。") }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        defer { try? handle.close() }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG),
+              info.st_size >= 0, info.st_size <= maximumBytes else {
+            throw SetupError.message("诊断摘要必须是不超过 1 MiB 的普通文件。")
+        }
+        var data = Data()
+        while let chunk = try handle.read(upToCount: min(65_536, maximumBytes + 1 - data.count)), !chunk.isEmpty {
+            data.append(chunk)
+            guard data.count <= maximumBytes else { throw SetupError.message("诊断摘要超过读取大小限制。") }
+        }
+        return try decode(data)
+    }
+
+    func fact(_ id: String) -> Fact? { facts?.first { $0.id == id } }
+    func evidence(_ id: String) -> String {
+        guard let fact = fact(id) else { return "未取得证据" }
+        let value = fact.value.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
+        switch fact.state {
+        case "observed": return value.isEmpty ? "未取得证据" : value
+        case "attention": return "需核实：" + (value.isEmpty ? "证据不一致" : value)
+        case "unverified": return "尚未验收"
+        default: return "未取得证据"
+        }
+    }
+    var serviceTitle: String {
+        switch fact("service")?.state {
+        case "observed": return "服务已运行 · 诊断快照"
+        case "attention": return "服务证据需检查 · 诊断快照"
+        default: return "服务状态未确认 · 诊断快照"
+        }
+    }
+    var wifiSummary: String {
+        switch fact("upstream_ssid")?.state {
+        case "observed": return "期望 Wi-Fi 已匹配"
+        case "attention": return "期望 Wi-Fi 不匹配"
+        default: return "期望 Wi-Fi 未验证"
+        }
+    }
+    var hostSummary: String {
+        guard let probes = probes else { return "未取得请求记录；页面内容未验收" }
+        guard !probes.isEmpty else { return "未发送网页请求；页面内容未验收" }
+        let completed = probes.filter { $0.transferred }.count
+        return "\(completed)/\(probes.count) 次入口传输成功；页面内容未验收"
+    }
+    var powerSummary: String {
+        guard let fact = fact("power_source"), fact.state == "observed" else { return "供电未确认" }
+        switch fact.value.components(separatedBy: "；").first {
+        case "AC": return "外接电源"
+        case "battery": return "电池供电"
+        case "UPS": return "UPS 供电"
+        default: return "供电未确认"
+        }
+    }
+    var lidSummary: String {
+        guard let fact = fact("lid_state"), fact.state == "observed" else { return "合盖状态未确认" }
+        switch fact.value.components(separatedBy: "；").first {
+        case "open": return "采集时开盖"
+        case "closed": return "采集时合盖"
+        default: return "合盖状态未确认"
+        }
+    }
+    var evidenceRows: [String] {
+        [powerSummary + "；" + lidSummary, evidence("sleep_policy"), hostSummary,
+         "未独立验收；" + evidence("downstream_speed")]
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     let summary = NSTextView()
@@ -80,6 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let diagnoseButton = NSButton(title: "生成诊断报告…", target: nil, action: nil)
     let refreshButton = NSButton(title: "刷新状态", target: nil, action: nil)
     let progress = NSProgressIndicator()
+    let evidenceLabels = (0..<4).map { _ in NSTextField(wrappingLabelWithString: "生成诊断报告后查看") }
     var configData: Data?
     var isBusy = false
 
@@ -116,8 +234,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSLayoutConstraint.activate([
             content.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 18),
             content.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -18),
-            content.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
-            content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16)
+            content.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+            content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12)
         ])
         return box
     }
@@ -177,8 +295,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             brandImage.contentTintColor = .systemTeal
         }
         brandImage.imageScaling = .scaleProportionallyUpOrDown
-        brandImage.widthAnchor.constraint(equalToConstant: 64).isActive = true
-        brandImage.heightAnchor.constraint(equalToConstant: 64).isActive = true
+        brandImage.widthAnchor.constraint(equalToConstant: 48).isActive = true
+        brandImage.heightAnchor.constraint(equalToConstant: 48).isActive = true
         brandImage.setAccessibilityLabel("SoftRouter 应用图标")
         let brand = vertical([
             label("SoftRouter", size: 28, weight: .semibold),
@@ -209,6 +327,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let statusRow = NSStackView(views: [statusText, progress, refreshButton])
         statusRow.spacing = 14; statusRow.alignment = .centerY; statusRow.distribution = .fill
         statusText.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        var evidenceRows: [NSView] = []
+        for (index, title) in ["供电 / 合盖", "睡眠策略", "主机网页", "真实下游"].enumerated() {
+            let titleLabel = label(title, size: 12, weight: .medium, color: .secondaryLabelColor)
+            titleLabel.widthAnchor.constraint(equalToConstant: 78).isActive = true
+            let detail = evidenceLabels[index]
+            detail.font = .systemFont(ofSize: 12); detail.textColor = .secondaryLabelColor
+            detail.maximumNumberOfLines = 2; detail.lineBreakMode = .byTruncatingTail
+            detail.setAccessibilityIdentifier("diagnostics.evidence.\(index)")
+            detail.setAccessibilityLabel(title)
+            detail.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            detail.setContentCompressionResistancePriority(.required, for: .vertical)
+            let row = NSStackView(views: [titleLabel, detail])
+            row.alignment = .firstBaseline; row.spacing = 8
+            evidenceRows.append(row)
+        }
+        evidenceLabels[2].stringValue = "尚未探测；页面内容未验收"
+        evidenceLabels[3].stringValue = "未独立验收"
+        let statusCard = card(vertical([statusRow, vertical(evidenceRows, spacing: 5)], spacing: 12))
 
         diagnoseButton.target = self; diagnoseButton.action = #selector(diagnose)
         configureButton(diagnoseButton, symbol: "doc.text.magnifyingglass", identifier: "diagnostics.generate", help: "生成最近三天的本机只读报告，可选择上游 Wi-Fi 和公开站点进行核对。")
@@ -216,10 +352,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let diagnosticActions = NSStackView(views: [diagnoseButton]); diagnosticActions.alignment = .centerY
         let diagnosticCard = card(vertical([
             sectionTitle("网络诊断", symbol: "waveform.path.ecg"),
-            label("查看服务、路由、DNS 与近期连接事件，也可以核对是否接入了期望的 Wi-Fi。", color: .secondaryLabelColor),
+            label("查看供电、合盖、网络与近期事件，核对期望 Wi-Fi。", size: 12, color: .secondaryLabelColor),
             label("只读检查 · 本地报告 · 无需管理员密码", size: 11, weight: .medium, color: .secondaryLabelColor),
             diagnosticActions
-        ], spacing: 13))
+        ], spacing: 10))
 
         chooseButton.target = self; chooseButton.action = #selector(chooseConfig)
         installButton.target = self; installButton.action = #selector(installGateway); installButton.isEnabled = false
@@ -230,10 +366,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let setupActions = NSStackView(views: [chooseButton, installButton]); setupActions.spacing = 8
         let deploymentCard = card(vertical([
             sectionTitle("新网关部署", symbol: "point.3.connected.trianglepath.dotted"),
-            label("让 AI 按部署指南准备本机配置，再导入检查。仅支持首次安装，已有网关会保留。", color: .secondaryLabelColor),
+            label("让 AI 准备本机配置，再导入检查。仅支持首次安装，已有网关会保留。", size: 12, color: .secondaryLabelColor),
             configLabel,
             setupActions
-        ], spacing: 13))
+        ], spacing: 10))
         let cards = NSStackView(views: [diagnosticCard, deploymentCard])
         cards.distribution = .fillEqually; cards.alignment = .top; cards.spacing = 16
         diagnosticCard.heightAnchor.constraint(equalTo: deploymentCard.heightAnchor).isActive = true
@@ -250,7 +386,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         scroll.autohidesScrollers = true; scroll.borderType = .noBorder
         summary.autoresizingMask = [.width]
         summary.textContainer?.widthTracksTextView = true
-        scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 136).isActive = true
+        scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 60).isActive = true
         let outputTitle = label("配置与运行记录", size: 13, weight: .semibold)
         let output = card(vertical([outputTitle, scroll], spacing: 10))
         output.setContentHuggingPriority(.defaultLow, for: .vertical)
@@ -262,13 +398,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let footer = NSStackView(views: [note, guide]); footer.spacing = 16; footer.alignment = .centerY
         footer.distribution = .fill
         note.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let stack = vertical([header, card(statusRow), cards, output, footer], spacing: 16)
+        let stack = vertical([header, statusCard, cards, output, footer], spacing: 12)
         root.addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 28),
             stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -28),
-            stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 22),
-            stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -22)
+            stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
+            stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16)
         ])
         window.initialFirstResponder = diagnoseButton
         diagnoseButton.nextKeyView = chooseButton; chooseButton.nextKeyView = installButton
@@ -288,6 +424,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         chooseButton.isEnabled = !value; diagnoseButton.isEnabled = !value; refreshButton.isEnabled = !value
         if value { installButton.isEnabled = false; progress.startAnimation(nil) }
         else { progress.stopAnimation(nil) }
+    }
+
+    private func showSnapshot(_ report: DiagnosticSnapshot) {
+        stateTitle.stringValue = report.serviceTitle
+        state.stringValue = report.wifiSummary + "。以下为本次诊断快照；服务状态不能替代页面与下游验收。"
+        state.toolTip = report.fact("service")?.value
+        for (index, text) in report.evidenceRows.enumerated() {
+            evidenceLabels[index].stringValue = text
+            evidenceLabels[index].toolTip = text
+            evidenceLabels[index].textColor = .labelColor
+        }
+        evidenceLabels[0].toolTip = report.evidence("power_source") + "；" + report.evidence("lid_state")
+        if report.fact("sleep_policy")?.state == "attention" { evidenceLabels[1].textColor = .systemOrange }
     }
 
     @objc func chooseConfig() {
@@ -410,6 +559,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         state.stringValue = "正在收集只读证据；历史检索和网页测试均有超时限制…"
         DispatchQueue.global(qos: .utility).async { [self, args] in
             let result = Result { try Setup.run("/bin/bash", args) }
+            var snapshot: Result<(URL, DiagnosticSnapshot), Error>?
+            if case .success(let output) = result, output.0 == 0 {
+                snapshot = Result {
+                    let directory = try DiagnosticSnapshot.directory(from: output.1, selectedFolder: folder)
+                    return (directory, try DiagnosticSnapshot.load(from: directory))
+                }
+            }
+            let snapshotResult = snapshot
             DispatchQueue.main.async { [self] in
                 setBusy(false); refreshStatus()
                 switch result {
@@ -417,11 +574,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case .success(let output):
                     summary.string = output.1
                     if output.0 != 0 { showError(SetupError.message(output.1), title: "诊断报告未生成"); return }
-                    stateTitle.stringValue = "诊断报告已保存到本机"
-                    state.stringValue = "报告已生成；请阅读 unknown 与 unverified 项。下游联网与页面内容仍需实际验收。"
-                    if let line = output.1.components(separatedBy: "\n").first(where: { $0.hasPrefix("REPORT_DIR=") }) {
-                        let path = String(line.dropFirst("REPORT_DIR=".count))
-                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path).appendingPathComponent("report.md")])
+                    switch snapshotResult {
+                    case .success(let (directory, report)):
+                        showSnapshot(report)
+                        NSWorkspace.shared.activateFileViewerSelecting([directory.appendingPathComponent("report.md")])
+                    case .failure(let error):
+                        state.stringValue = "报告已保存；摘要未读取。真实下游与页面内容仍未验收。"
+                        for field in evidenceLabels { field.stringValue = "摘要未读取；详见运行记录"; field.textColor = .secondaryLabelColor; field.toolTip = nil }
+                        summary.string += "\n摘要未读取：" + error.localizedDescription
+                    case .none: break
                     }
                 }
             }
@@ -434,7 +595,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 if CommandLine.arguments.contains("--self-test") {
-    func expect(_ condition: @autoclosure () -> Bool) { if !condition() { fputs("Installer self-test failed\n", stderr); exit(1) } }
+    var assertions = 0
+    func expect(_ condition: @autoclosure () -> Bool) {
+        assertions += 1
+        if !condition() { fputs("Native self-test failed at assertion \(assertions)\n", stderr); exit(1) }
+    }
     let lines = Setup.keys.sorted().map { $0 + "=example" }.joined(separator: "\n")
     expect((try? Setup.parse(Data(lines.utf8)).count) == 7)
     expect((try? Setup.parse(Data((lines + "\nUNKNOWN=value").utf8))) == nil)
@@ -449,7 +614,51 @@ if CommandLine.arguments.contains("--self-test") {
     var error: NSDictionary?
     let returned = NSAppleScript(source: literal)?.executeAndReturnError(&error).stringValue
     expect(error == nil && returned == value)
-    print("Installer self-tests: 8 passed. No authorization, installation or network mutation.")
+    func reportData(_ extra: [String: Any] = [:]) throws -> Data {
+        var values: [String: Any] = ["schema_version": 1]
+        for (key, value) in extra { values[key] = value }
+        return try JSONSerialization.data(withJSONObject: values)
+    }
+    let missing = try DiagnosticSnapshot.decode(reportData())
+    expect(missing.serviceTitle.contains("未确认") && missing.evidenceRows[0].contains("未确认"))
+    expect(missing.hostSummary.contains("未取得请求记录") && missing.evidenceRows[3].hasPrefix("未独立验收"))
+    let successData = try reportData([
+        "facts": [["id": "service", "state": "observed", "value": "服务已运行"],
+                  ["id": "power_source", "state": "observed", "value": "AC"],
+                  ["id": "lid_state", "state": "observed", "value": "closed；瞬时观察"],
+                  ["id": "sleep_policy", "state": "attention", "value": "全局禁睡已开启"]],
+        "probes": [["curl_exit": "0", "http": "200"], ["curl_exit": "28", "http": "200"],
+                   ["curl_exit": "0", "http": "500"], ["curl_exit": "0", "http": "302"]],
+        "downstream_verified": true
+    ])
+    let success = try DiagnosticSnapshot.decode(successData)
+    expect(success.serviceTitle == "服务已运行 · 诊断快照")
+    expect(success.hostSummary == "2/4 次入口传输成功；页面内容未验收")
+    expect(success.evidenceRows[3].hasPrefix("未独立验收"))
+    expect(success.evidenceRows[0] == "外接电源；采集时合盖")
+    expect(success.evidenceRows[1].hasPrefix("需核实："))
+    let attention = try DiagnosticSnapshot.decode(reportData(["facts": [["id": "service", "state": "attention", "value": "不一致"]], "probes": []]))
+    expect(attention.serviceTitle.contains("需检查") && attention.hostSummary.contains("未发送网页请求"))
+    expect((try? DiagnosticSnapshot.decode(reportData(["schema_version": 2]))) == nil)
+    expect((try? DiagnosticSnapshot.decode(Data("invalid".utf8))) == nil)
+    expect((try? DiagnosticSnapshot.decode(Data(repeating: 32, count: DiagnosticSnapshot.maximumBytes + 1))) == nil)
+    let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("softrouter-summary-test-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: temporary) }
+    let reportFile = temporary.appendingPathComponent("report.json")
+    try successData.write(to: reportFile)
+    expect((try? DiagnosticSnapshot.load(from: temporary).hostSummary) == success.hostSummary)
+    expect((try? DiagnosticSnapshot.directory(from: "REPORT_DIR=" + temporary.path, selectedFolder: temporary.deletingLastPathComponent()).path) == temporary.standardizedFileURL.path)
+    expect((try? DiagnosticSnapshot.directory(from: "REPORT_DIR=/outside/report", selectedFolder: temporary)) == nil)
+    try FileManager.default.removeItem(at: reportFile)
+    let target = temporary.appendingPathComponent("target.json")
+    try successData.write(to: target)
+    try FileManager.default.createSymbolicLink(at: reportFile, withDestinationURL: target)
+    expect((try? DiagnosticSnapshot.load(from: temporary)) == nil)
+    try FileManager.default.removeItem(at: reportFile)
+    try FileManager.default.createDirectory(at: reportFile, withIntermediateDirectories: false)
+    expect((try? DiagnosticSnapshot.load(from: temporary)) == nil)
+    print("Native self-tests: \(assertions) passed. Synthetic report fixtures; no authorization, installation or network mutation.")
 } else {
     let app = NSApplication.shared
     let delegate = AppDelegate()

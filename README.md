@@ -1,6 +1,22 @@
 # SoftRouter
 
-安装在 Mac 上、用于共享校园网的软路由。
+<img src='softrouter/macos/assets/SoftRouterIcon.png' width='88' alt='SoftRouter icon'>
+
+用已有电脑把 Wi-Fi 分享给有线路由器，把部署交给你的 AI。
+
+[下载软件](https://github.com/AntimoOfficial/SoftRouter/releases/latest) · [English](softrouter/docs/README.en.md) · [社区测试反馈](https://github.com/AntimoOfficial/SoftRouter/issues/new?template=platform-test.md)
+
+```text
+校园 / 企业 Wi-Fi → 电脑完成认证与共享 → 路由器 WAN → LAN / Wi-Fi 设备
+```
+
+| 平台 | 下载与安装 | 当前实现和证据 |
+|---|---|---|
+| macOS 14+ | `.pkg`，双击安装应用 | PF 与 launchd；已有专用部署实测，通用安装仍待验收 |
+| Windows 10/11 | `windows-test.zip`，解压后双击 `Install.cmd` | 原生 ICS 图形助手；首批测试版，未做真实联网验收 |
+| Linux 桌面 | `linux-test_all.deb` 或 `linux-test.tar.gz` | NetworkManager 共享与图形助手；首批测试版，未做真实联网验收 |
+
+三端均先安装应用，再由用户选择接口并启用共享。Windows/Linux 与 macOS 使用不同后端，配置文件不能混用。见 [跨平台入口](softrouter/docs/platforms.md)。
 
 SoftRouter 将保持唤醒的 Mac 作为 IPv4 网关：Mac 通过 Wi-Fi 连接上游，独立以太网接口连接路由器 WAN，下游设备使用路由器的 LAN 或 Wi-Fi。
 
@@ -8,11 +24,11 @@ macOS 负责校园或企业 802.1X 认证，SoftRouter 负责有线转发与常�
 
 部署时须在这台 Mac 上保留目标上游的自动加入，并关闭下游路由器 Wi-Fi 的自动加入，避免上游断线后误连自身下游。设置保留凭据，不必忘记网络；核对方法见 [AI 部署手册](softrouter/docs/ai-setup.md#2-生成本地配置和具体计划)。
 
-当前为 `0.1.0-alpha.4` 开发预览。通用化版本通过离线检查，但尚未完成真实安装验收；专用部署的成功不能推广为所有 Mac、系统和网卡均受支持。详见 [兼容性与验证范围](softrouter/docs/compatibility.md)。
+当前为 `0.1.0-alpha.5` 实验版本。离线检查不等于真实联网验收；专用部署的成功不能推广为所有系统和网卡均受支持。详见 [兼容性与验证范围](softrouter/docs/compatibility.md)。
 
 ## 下载并双击安装
 
-[打开 Release 下载页](https://github.com/AntimoOfficial/SoftRouter/releases/tag/v0.1.0-alpha.4)。下载 `.pkg` 后双击安装应用，再导入 AI 按部署指南生成的本机配置，通过系统授权安装网关。详见 [图形安装说明](softrouter/docs/desktop-installer.md)。
+[打开 Release 下载页](https://github.com/AntimoOfficial/SoftRouter/releases/latest)。Mac 下载 `.pkg` 后双击安装应用，再导入 AI 按部署指南生成的本机配置，通过系统授权安装网关。详见 [图形安装说明](softrouter/docs/desktop-installer.md)。Windows/Linux 使用表格中的独立入口。
 
 安装包支持 macOS 14+ 的 Apple Silicon 与 Intel，当前未使用 Developer ID 签名或 Apple 公证，首次打开可能被 macOS 拦截。包只安装应用，网络转发需在应用内明确启用；已有部署不会自动迁移。
 
@@ -27,6 +43,8 @@ macOS 负责校园或企业 802.1X 认证，SoftRouter 负责有线转发与常�
 把本仓库地址和下面这段话交给能操作本机终端的 AI：
 
 > 请读取仓库的 README.md、AGENTS.md 和 softrouter/docs/ai-setup.md，帮助我把这台 Mac 配置为 Wi-Fi 上游、有线路由器下游的共享网关。先只读检查环境，形成具体配置与恢复方案，再完成安装和真实下游验收。需要我接线、输入密码或提供权限时说明具体操作。
+
+Windows/Linux 将上述 Mac 改为本机平台，并先让 AI 读取 `softrouter/docs/platforms.md` 和对应平台 README；不要在这两端执行 macOS 的 PF 脚本。
 
 只有聊天能力的 AI 可以指导命令，不能自行配置电脑。管理员认证、校园认证和接线可能需要用户参与。没有浏览器控制能力或路由器管理会话时，由用户按 AI 生成的 WAN 参数表填写。
 
