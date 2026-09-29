@@ -1,6 +1,6 @@
 # 隐私与问题报告
 
-SoftRouter 不要求、读取或保存 Wi-Fi 与企业 802.1X 密码，不负责登录认证，也不包含遥测或向第三方上传诊断的功能。认证由 macOS 管理。
+SoftRouter 不要求、读取或保存 Wi-Fi 与企业 802.1X 密码，不负责登录认证，也不包含遥测或向第三方上传诊断的功能。认证由操作系统管理。
 
 配置文件包含接口名称、下游服务名称及 UUID、MAC 地址和私有 IPv4 地址。这些内容不是认证凭据，但可以识别设备和网络环境，不应原样提交到公开仓库。
 
@@ -11,6 +11,8 @@ SoftRouter 不要求、读取或保存 Wi-Fi 与企业 802.1X 密码，不负责
 | `/Library/SoftRouter` | 安装程序与本机配置 |
 | `/Library/Logs/SoftRouter` | 状态、运行日志与归档诊断 |
 | `/private/var/run/softrouter` | 受保护的本轮状态、所有权记录与清理依据 |
+
+以上位置适用于 macOS。Windows 应用位于 `%ProgramFiles%\SoftRouter`，受保护的恢复记录位于 `%ProgramData%\SoftRouter`。Linux 应用位于 `/opt/softrouter`，恢复记录位于 `/var/lib/softrouter`；记录包含 UUID 和未请求秘密值的持久连接属性。其他端的接口与状态输出也应视为本地运维资料。
 
 卸载保留日志；不要将卸载等同于删除全部本地诊断。异常状态仍存在时，不要为清理隐私资料而直接删除正在使用的恢复目录。
 

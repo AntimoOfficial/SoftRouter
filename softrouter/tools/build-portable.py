@@ -107,10 +107,12 @@ def build(mode):
 set -eu
 case "${1:-}" in
   install)
-    if [ -e /opt/softrouter ] || [ -L /opt/softrouter ]; then
-      echo 'Existing /opt/softrouter preserved. Remove that installation safely first.' >&2
-      exit 1
-    fi
+    for path in /opt/softrouter /usr/share/applications/softrouter.desktop /usr/share/pixmaps/softrouter.png; do
+      if [ -e "$path" ] || [ -L "$path" ]; then
+        echo "Existing path preserved: $path. Remove that installation safely first." >&2
+        exit 1
+      fi
+    done
     ;;
 esac
 if [ -e /var/lib/softrouter/ownership.json ] || [ -L /var/lib/softrouter/ownership.json ]; then
@@ -122,22 +124,33 @@ fi
 set -eu
 case "${1:-}" in
   remove|deconfigure|upgrade)
-    /usr/bin/python3 -I /opt/softrouter/backend.py uninstall-check
+    /usr/bin/python3 -I /opt/softrouter/backend.py package-begin
+    ;;
+esac
+'''
+    postinst = b'''#!/bin/sh
+set -eu
+case "${1:-}" in
+  configure|abort-upgrade|abort-remove|abort-deconfigure)
+    /usr/bin/python3 -I /opt/softrouter/backend.py package-end
     ;;
 esac
 '''
     artifacts[f'SoftRouter-{version}-linux-test_all.deb'] = ar_bytes([
         ('debian-binary', b'2.0\n'),
         ('control.tar.gz', tar_bytes({'./control': (control, 0o644),
-                                      './preinst': (preinst, 0o755), './prerm': (prerm, 0o755)})),
+                                      './preinst': (preinst, 0o755), './prerm': (prerm, 0o755),
+                                      './postinst': (postinst, 0o755)})),
         ('data.tar.gz', tar_bytes(data))])
     for name in artifacts:
-        if (out / name).exists() or (out / name).is_symlink():
-            raise ValueError('Output already exists: ' + name)
+        for output in (out / name, out / (name + '.sha256')):
+            if output.exists() or output.is_symlink():
+                raise ValueError('Output already exists: ' + output.name)
     for name, data in artifacts.items():
         with (out / name).open('xb') as file:
             file.write(data)
-        (out / (name + '.sha256')).write_text(hashlib.sha256(data).hexdigest() + '  ' + name + '\n')
+        with (out / (name + '.sha256')).open('x') as checksum:
+            checksum.write(hashlib.sha256(data).hexdigest() + '  ' + name + '\n')
         print(out / name)
     print('Packaged source-based apps and installers; no Windows/Linux live network testing.')
 

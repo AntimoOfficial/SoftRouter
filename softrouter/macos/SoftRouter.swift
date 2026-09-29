@@ -339,7 +339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             detail.setContentHuggingPriority(.defaultLow, for: .horizontal)
             detail.setContentCompressionResistancePriority(.required, for: .vertical)
             let row = NSStackView(views: [titleLabel, detail])
-            row.alignment = .firstBaseline; row.spacing = 8
+            row.alignment = .firstBaseline; row.spacing = 8; row.distribution = .fill
             evidenceRows.append(row)
         }
         evidenceLabels[2].stringValue = "尚未探测；页面内容未验收"

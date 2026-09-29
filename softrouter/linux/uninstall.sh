@@ -9,7 +9,7 @@ if command -v dpkg-query >/dev/null 2>&1 && dpkg-query -S /opt/softrouter/backen
   echo 'This application is package-managed. Disable owned sharing, then run: sudo apt remove softrouter' >&2
   exit 1
 fi
-/usr/bin/python3 -I /opt/softrouter/backend.py uninstall-check
+/usr/bin/python3 -I /opt/softrouter/backend.py package-begin
 /usr/bin/python3 -I <<'PY'
 import pathlib, stat
 root = pathlib.Path('/opt/softrouter')

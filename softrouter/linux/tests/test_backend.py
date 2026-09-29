@@ -32,12 +32,19 @@ def snapshot():
 class MemoryStore:
     def __init__(self):
         self.value = None
+        self.marker = None
     def read(self):
         return copy.deepcopy(self.value)
     def write(self, value):
         self.value = copy.deepcopy(value)
     def clear(self):
         self.value = None
+    def maintenance(self):
+        return copy.deepcopy(self.marker)
+    def write_maintenance(self, marker):
+        self.marker = copy.deepcopy(marker)
+    def clear_maintenance(self):
+        self.marker = None
 
 
 class FakeSystem:
@@ -254,6 +261,64 @@ class LifecycleTests(unittest.TestCase):
             base = Path(directory); (base / 'target').write_text('{}')
             (base / 'ownership.json').symlink_to(base / 'target')
             self.assertRaises(b.Refusal, b.Store(base).read)
+
+
+class PackageMaintenanceTests(unittest.TestCase):
+    def setUp(self):
+        self.system = FakeSystem(); self.store = MemoryStore()
+        self.manager = b.Manager(self.system, self.store)
+    def test_begin_blocks_already_open_gui_enable_without_network_calls(self):
+        self.assertEqual(b.package_begin(self.store)['status'], 'maintenance')
+        self.assertRaises(b.Refusal, self.manager.enable, config())
+        self.assertEqual(self.system.calls, [])
+        self.assertIsNotNone(self.store.marker)
+    def test_enable_first_prevents_package_begin(self):
+        self.manager.enable(config())
+        self.assertRaises(b.Refusal, b.package_begin, self.store)
+        self.assertIsNone(self.store.marker)
+    def test_interrupted_begin_is_idempotent_and_retains_marker(self):
+        b.package_begin(self.store); original = self.store.maintenance()
+        b.package_begin(self.store)
+        self.assertEqual(self.store.marker, original)
+        self.assertRaises(b.Refusal, self.manager.enable, config())
+    def test_end_unblocks_only_after_no_ownership(self):
+        b.package_begin(self.store)
+        self.assertEqual(b.package_end(self.store)['status'], 'app_ready')
+        self.assertIsNone(self.store.marker)
+        self.assertEqual(self.system.calls, [])
+        self.assertEqual(self.manager.enable(config())['status'], 'active')
+    def test_end_retains_marker_when_ownership_is_present(self):
+        b.package_begin(self.store)
+        self.store.value = {'recovery': 'unknown'}
+        self.assertRaises(b.Refusal, b.package_end, self.store)
+        self.assertIsNotNone(self.store.marker)
+    def test_fresh_install_end_is_nonmutating(self):
+        self.assertEqual(b.package_end(self.store)['status'], 'app_ready')
+        self.assertEqual(self.system.calls, [])
+    def test_unknown_marker_is_never_cleared(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); marker = base / 'maintenance.json'
+            marker.write_text('{"schema":1,"kind":"someone_else","token":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}')
+            marker.chmod(0o600)
+            # Simulate root ownership only; real permission/type/format checks remain.
+            with patch.object(b, 'checked_root_path', side_effect=lambda path: path.lstat()):
+                self.assertRaises(b.Refusal, b.package_end, b.Store(base))
+            self.assertTrue(marker.exists())
+    def test_insecure_marker_is_never_cleared(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); marker = base / 'maintenance.json'
+            marker.write_text('{"schema":1,"kind":"softrouter_package_maintenance","token":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}')
+            marker.chmod(0o644)
+            with patch.object(b, 'checked_root_path', side_effect=lambda path: path.lstat()):
+                self.assertRaises(b.Refusal, b.package_end, b.Store(base))
+            self.assertTrue(marker.exists())
+    def test_symlinked_marker_is_never_cleared(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); target = base / 'target'; target.write_text('{}')
+            marker = base / 'maintenance.json'; marker.symlink_to(target)
+            self.assertRaises(b.Refusal, b.package_end, b.Store(base))
+            self.assertTrue(marker.is_symlink())
+            self.assertEqual(target.read_text(), '{}')
 
 
 if __name__ == '__main__':

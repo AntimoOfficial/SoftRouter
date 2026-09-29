@@ -10,6 +10,12 @@ The Linux edition does not reproduce the macOS firewall design. NetworkManager s
 
 Use a desktop Linux distribution with Python 3.9 or newer, Tk, NetworkManager, nmcli, iproute2, PolicyKit and the DHCP/DNS dependency required by NetworkManager shared mode. On Debian/Ubuntu these normally correspond to python3, python3-tk, network-manager, iproute2, policykit-1 and dnsmasq-base. A graphical PolicyKit authentication agent must be running.
 
+For Debian/Ubuntu, open the downloaded `.deb` in the system package installer, or install it with dependencies from a terminal in the download directory:
+
+```sh
+sudo apt install ./SoftRouter-0.1.0-alpha.5-linux-test_all.deb
+```
+
 For the release archive, extract its files, then run:
 
 ```sh
@@ -46,6 +52,10 @@ sudo /bin/bash /opt/softrouter/uninstall.sh
 For a Debian package installation, use `sudo apt remove softrouter`; the standalone uninstaller refuses to remove package-managed files.
 
 The uninstaller refuses to remove the application while an ownership or recovery journal remains. It does not flush firewall rules, delete unrelated profiles, restore a previous DHCP profile or change upstream Wi-Fi. Application updates are not automatic; do not replace an active experimental deployment.
+
+Package removal and upgrade first create a private maintenance marker under /var/lib/softrouter while holding the same lock used by sharing operations. Enable refuses this marker, including from an already open GUI. Removal leaves the marker in place; a completed installation or upgrade checks the installed payload and then clears the recognized marker. These maintenance steps do not change the network.
+
+Interrupted maintenance keeps sharing blocked. Complete the interrupted package installation through the package manager, or complete the archive installation, so its final package-end check can run. If application files are already complete, an administrator can use `sudo /usr/bin/python3 -I /opt/softrouter/backend.py package-end` to check the installed payload and clear a recognized marker. This refuses an outstanding ownership journal or an unknown, symlinked, non-private or malformed marker; it does not delete unclear recovery data. Do not remove the marker manually to bypass the check.
 
 ## Offline checks
 

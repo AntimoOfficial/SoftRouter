@@ -31,4 +31,5 @@ done
 install -m 0644 "$BASE/softrouter.desktop" /usr/share/applications/softrouter.desktop
 install -m 0644 "$BASE/SoftRouterIcon.png" /usr/share/pixmaps/softrouter.png
 chown -R root:root /opt/softrouter
+/usr/bin/python3 -I /opt/softrouter/backend.py package-end
 printf 'Application installed. Open SoftRouter Linux Test. No sharing or system network setting was changed.\n'

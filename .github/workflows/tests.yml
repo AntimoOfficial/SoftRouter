@@ -44,3 +44,7 @@ jobs:
         run: |
           dpkg-deb --info dist/*-linux-test_all.deb
           dpkg-deb --contents dist/*-linux-test_all.deb
+          dpkg-deb --control dist/*-linux-test_all.deb dist/deb-control
+          for script in preinst prerm postinst; do
+            /bin/sh -n "dist/deb-control/$script"
+          done

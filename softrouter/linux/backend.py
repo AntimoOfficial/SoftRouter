@@ -261,6 +261,7 @@ class Store:
     def __init__(self, directory=STATE_DIR):
         self.directory = directory
         self.path = directory / 'ownership.json'
+        self.maintenance_path = directory / 'maintenance.json'
 
     def prepare(self):
         checked_root_path(self.directory.parent, directory=True)
@@ -299,17 +300,48 @@ class Store:
             raise Refusal('Unknown ownership journal; manual recovery is required.')
         return data
 
-    def write(self, data):
+    def maintenance(self):
+        path = self.maintenance_path
+        if not path.exists() and not path.is_symlink():
+            return None
+        info = checked_root_path(path)
+        if stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1 or info.st_size > 4096:
+            raise Refusal('Maintenance marker is not a private root-owned regular file; it was preserved.')
+        descriptor = os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(descriptor) as source:
+            data = decode(source.read(4097))
+        if (not isinstance(data, dict) or set(data) != {'schema', 'kind', 'token'}
+                or type(data.get('schema')) is not int or data.get('schema') != 1
+                or data.get('kind') != 'softrouter_package_maintenance'
+                or not valid_uuid(data.get('token'))):
+            raise Refusal('Unknown maintenance marker; it was preserved for manual recovery.')
+        return data
+
+    def _write(self, path, data):
         descriptor, name = tempfile.mkstemp(prefix='.journal-', dir=str(self.directory))
         try:
             with os.fdopen(descriptor, 'w') as target:
                 json.dump(data, target, sort_keys=True)
                 target.flush()
                 os.fsync(target.fileno())
-            os.replace(name, str(self.path))
+            os.replace(name, str(path))
+            directory_fd = os.open(str(self.directory), os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
         finally:
             if os.path.exists(name):
                 os.unlink(name)
+
+    def write(self, data):
+        self._write(self.path, data)
+
+    def write_maintenance(self, data):
+        self._write(self.maintenance_path, data)
+
+    def clear_maintenance(self):
+        self.maintenance_path.unlink()
 
     def clear(self):
         self.path.unlink()
@@ -361,6 +393,9 @@ class Manager:
 
     def enable(self, config):
         config = validate_config(config)
+        if self.store.maintenance() is not None:
+            raise Refusal('Application installation, upgrade or removal is in progress or was interrupted. '
+                          'Sharing is blocked by the preserved maintenance marker until package-end completes safely.')
         if self.store.read() is not None:
             raise Refusal('An ownership journal already exists. Disable or recover that deployment first.')
         plan = preflight(config, self.system.inspect())
@@ -434,9 +469,38 @@ def installed_backend_check():
     checked_root_path(INSTALL_DIR / 'backend.py')
 
 
+def installed_payload_check():
+    # package-end is called only after the installer has copied the complete payload.
+    for name in ('app.py', 'backend.py', 'uninstall.sh', 'config.example.json', 'README.md', 'VERSION', 'LICENSE', 'build-info.txt'):
+        checked_root_path(INSTALL_DIR / name)
+    for path in ('/usr/share/applications/softrouter.desktop', '/usr/share/pixmaps/softrouter.png'):
+        checked_root_path(Path(path))
+
+
+def package_begin(store):
+    # Caller holds Store.lock, the same lock used throughout enable/disable.
+    if store.read() is not None:
+        raise Refusal('Disable or recover the owned profile before changing application files; ownership journal retained.')
+    marker = store.maintenance()
+    if marker is None:
+        marker = dict(schema=1, kind='softrouter_package_maintenance', token=str(uuid.uuid4()))
+        store.write_maintenance(marker)
+    return dict(status='maintenance', detail='Sharing is blocked until the complete installed payload passes package-end. '
+                'Removal or interruption leaves the private maintenance marker in place.')
+
+
+def package_end(store):
+    # main verifies the installed payload before calling this under Store.lock.
+    if store.read() is not None:
+        raise Refusal('Ownership journal exists; maintenance marker retained for recovery.')
+    if store.maintenance() is not None:
+        store.clear_maintenance()
+    return dict(status='app_ready', detail='Installed payload checked and recognized maintenance marker cleared. No sharing was enabled.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('inspect', 'enable', 'disable', 'uninstall-check'))
+    parser.add_argument('action', choices=('inspect', 'enable', 'disable', 'uninstall-check', 'package-begin', 'package-end'))
     args = parser.parse_args()
     try:
         data = None
@@ -454,7 +518,12 @@ def main():
             installed_backend_check()
             store = Store()
             with store.lock():
-                if args.action == 'uninstall-check':
+                if args.action == 'package-begin':
+                    result = package_begin(store)
+                elif args.action == 'package-end':
+                    installed_payload_check()
+                    result = package_end(store)
+                elif args.action == 'uninstall-check':
                     if store.read() is not None:
                         raise Refusal('Disable the owned profile successfully before uninstalling; recovery journal is retained.')
                     result = {'status': 'safe_to_uninstall'}

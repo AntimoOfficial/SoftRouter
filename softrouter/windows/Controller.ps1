@@ -30,6 +30,8 @@ try {
         $mutex = New-Object Threading.Mutex($false, 'Global\SoftRouter.Windows.ICS')
         try { $locked = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $locked = $true }
         if (-not $locked) { throw 'Another SoftRouter operation is in progress.' }
+        # Uninstall uses this same lock; do not act on a payload removed while acquiring it.
+        Assert-InstalledPayload $PSScriptRoot
     }
     switch ($Action) {
         'Inspect' {
