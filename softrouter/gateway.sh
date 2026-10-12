@@ -17,7 +17,13 @@ BOOT_UUID=
 SERVICE_EXIT=1
 STATE_CLAIMED=0
 LAST_UPSTREAM=
-fail() { printf 'Gateway STOP: %s\n' "$*" >&2; exit 1; }
+MAIN_LOG_ENABLED=0
+MAIN_LOG_STATE_VALID=0
+MAIN_LOG_LIMIT=1048576
+MAIN_LOG_ROLE=
+MAIN_LOG_OUT=
+MAIN_LOG_ERR=
+fail() { main_logs_maintain; printf 'Gateway STOP: %s\n' "$*" >&2 || :; exit 1; }
 compact() { /usr/bin/tr -d '[:space:]'; }
 is_uint() { [[ "$1" =~ ^[1-9][0-9]*$ ]]; }
 pf() { /sbin/pfctl "$@" 2>> "$ROOT_DIR/pf-diagnostics.txt"; }
@@ -91,6 +97,112 @@ restore_ipv6() {
 root_object() {
   [ ! -L "$1" ] && [ "$(/usr/bin/stat -f '%u:%Lp' "$1")" = "0:$2" ]
 }
+main_log_file_ok() {
+  [ -f "$1" ] && [ ! -L "$1" ] && [ "$(/usr/bin/stat -f '%u:%Lp:%l' "$1" 2>/dev/null)" = "0:$2:1" ]
+}
+main_log_paths_ok() {
+  local path suffix
+  [ -d "$LOG_DIR" ] && root_object "$LOG_DIR" 755 || return 1
+  [ "$(cd -P "$LOG_DIR" && /bin/pwd)" = "$LOG_DIR" ] || return 1
+  case "$MAIN_LOG_ROLE:$MAIN_LOG_OUT:$MAIN_LOG_ERR" in
+    "guardian:$LOG_DIR/guardian.log:$LOG_DIR/guardian-error.log"|"worker:$LOG_DIR/gateway.log:$LOG_DIR/error.log") ;;
+    *) return 1 ;;
+  esac
+  # Only these exact names are managed; recovery archives and other logs stay intact.
+  for path in "$MAIN_LOG_OUT" "$MAIN_LOG_ERR"; do
+    for suffix in '' .1 .2 .3; do
+      if [ -e "$path$suffix" ] || [ -L "$path$suffix" ]; then
+        main_log_file_ok "$path$suffix" 644 || return 1
+      fi
+    done
+  done
+}
+main_log_prepare() {
+  local path=$1 bytes suffix previous
+  if [ ! -e "$path" ]; then
+    (umask 022; set -C; : > "$path") || return 1
+  fi
+  main_log_file_ok "$path" 644 || return 1
+  bytes=$(/usr/bin/stat -f '%z' "$path") || return 1
+  [[ "$bytes" =~ ^[0-9]+$ ]] || return 1
+  [ "$bytes" -ge "$MAIN_LOG_LIMIT" ] || return 0
+  [ ! -e "$path.3" ] || /bin/rm "$path.3" || return 1
+  for suffix in 3 2; do
+    previous=$((suffix-1))
+    [ ! -e "$path.$previous" ] || /bin/mv "$path.$previous" "$path.$suffix" || return 1
+  done
+  /bin/mv "$path" "$path.1" || return 1
+  (umask 022; set -C; : > "$path") || return 1
+  main_log_file_ok "$path" 644
+}
+main_log_fd_ok() {
+  [ "$(/usr/bin/stat -L -f '%u:%Lp:%l' "$1" 2>/dev/null)" = 0:644:1 ] &&
+    # macOS fdescfs reports its own device number for /dev/fd, but preserves
+    # the underlying regular-file type and inode. These exact paths share LOG_DIR.
+    [ "$(/usr/bin/stat -L -f '%HT:%i' "$1" 2>/dev/null)" = "$(/usr/bin/stat -f '%HT:%i' "$2" 2>/dev/null)" ]
+}
+main_logs_evidence() {
+  local marker
+  [ "$MAIN_LOG_STATE_VALID" = 1 ] || return 0
+  [ -d "$ROOT_DIR" ] && root_object "$ROOT_DIR" 700 || return 0
+  marker="$ROOT_DIR/logging-degraded-$MAIN_LOG_ROLE"
+  if [ "$1" = degraded ]; then
+    if [ ! -e "$marker" ] && [ ! -L "$marker" ]; then
+      (umask 077; set -C; printf 'main_log_write_unavailable\n' > "$marker") 2>/dev/null || :
+    fi
+  elif main_log_file_ok "$marker" 600 && [ "$(/bin/cat "$marker")" = main_log_write_unavailable ]; then
+    /bin/rm "$marker" 2>/dev/null || :
+  fi
+  return 0
+}
+main_logs_maintain() {
+  [ "$MAIN_LOG_ENABLED" = 1 ] || return 0
+  # The guardian and worker each own a distinct pair of files. No child logger,
+  # inherited launchd log fd, copytruncate, or cross-process reopening is needed.
+  # Close our two fds before moving files, then verify the newly opened inodes.
+  exec >/dev/null 2>&1
+  if main_log_paths_ok && main_log_prepare "$MAIN_LOG_OUT" && main_log_prepare "$MAIN_LOG_ERR" &&
+     exec 8>> "$MAIN_LOG_OUT" && exec 9>> "$MAIN_LOG_ERR" &&
+     main_log_fd_ok /dev/fd/8 "$MAIN_LOG_OUT" && main_log_fd_ok /dev/fd/9 "$MAIN_LOG_ERR"; then
+    exec 1>&8 2>&9 8>&- 9>&-
+    main_logs_evidence available
+  else
+    exec 8>&- 9>&-
+    main_logs_evidence degraded
+  fi
+  # Logging errors must not cause a healthy gateway to exit or change forwarding.
+  return 0
+}
+main_logs_start() {
+  MAIN_LOG_ROLE=$1
+  case "$MAIN_LOG_ROLE" in
+    guardian) MAIN_LOG_OUT="$LOG_DIR/guardian.log"; MAIN_LOG_ERR="$LOG_DIR/guardian-error.log" ;;
+    worker) MAIN_LOG_OUT="$LOG_DIR/gateway.log"; MAIN_LOG_ERR="$LOG_DIR/error.log" ;;
+    *) return 0 ;;
+  esac
+  MAIN_LOG_ENABLED=1
+  main_logs_maintain
+}
+main_logs_entry() {
+  local entry=$1
+  shift
+  [ "$(/usr/bin/id -u)" = 0 ] || return 0
+  case "${1-}" in
+    --service)
+      [ "$#" = 1 ] && [ "$entry" = "$INSTALL_SCRIPT" ] &&
+        [ -d "$INSTALL_DIR" ] && root_object "$INSTALL_DIR" 755 &&
+        main_log_file_ok "$INSTALL_SCRIPT" 500 || return 0
+      main_logs_start guardian
+      ;;
+    --worker)
+      [ "$#" = 2 ] && [ "$2" = "$ROOT_DIR" ] && [ "$entry" = "$ROOT_DIR/script" ] &&
+        [ -d "$ROOT_DIR" ] && root_object "$ROOT_DIR" 700 &&
+        main_log_file_ok "$ROOT_DIR/script" 500 || return 0
+      main_logs_start worker
+      ;;
+  esac
+  return 0
+}
 installation_ok() {
   [ "$(/usr/bin/id -u)" = 0 ] || fail 'Installed daemon requires root.'
   root_object "$INSTALL_DIR" 755 && root_object "$INSTALL_SCRIPT" 500 || fail 'Expected root-owned installation directory 0755 and script 0500.'
@@ -128,10 +240,14 @@ status_write() {
   /bin/chmod 644 "$tmp"
   /bin/mv -f "$tmp" "$LOG_DIR/status.txt"
 }
-log() { printf '%s %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"; }
+log() {
+  main_logs_maintain
+  printf '%s %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" || :
+}
 intent() {
   : > "$ROOT_DIR/$1-intent"
-  log "INTENT $1" >> "$ROOT_DIR/intents"
+  # This private journal is independent of the daemon's stdout log descriptors.
+  printf '%s INTENT %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$1" >> "$ROOT_DIR/intents"
 }
 archive_state() {
   local archive
@@ -449,6 +565,7 @@ cleanup() {
 guardian_exit() {
   trap - EXIT HUP INT TERM
   set +e
+  main_logs_maintain
   local pid= clean=0 changed=0
   [ "$STATE_CLAIMED" = 1 ] || exit "$SERVICE_EXIT"
   [ ! -s "$ROOT_DIR/worker-pid" ] || IFS= read -r pid < "$ROOT_DIR/worker-pid"
@@ -485,7 +602,9 @@ guardian() {
   trap guardian_exit EXIT
   trap 'SERVICE_EXIT=0; exit 0' HUP INT TERM
   claim_state
-  local pid pgid own
+  MAIN_LOG_STATE_VALID=1
+  main_logs_maintain
+  local pid pgid own ticks=0
   printf '%s\n' "$$" > "$ROOT_DIR/guardian-pid"
   status_write STARTING pending 'Checking exclusive ownership of gateway resources.'
   preflight
@@ -502,6 +621,8 @@ guardian() {
   printf '%s\n' "$$" > "$ROOT_DIR/armed"
   while :; do
     [ ! -e "$ROOT_DIR/worker-stop" ] && worker_matches "$pid" || break
+    ticks=$((ticks+1))
+    [ "$((ticks%30))" != 1 ] || main_logs_maintain
     /bin/sleep 1
   done
   log 'Worker stopped unexpectedly; guardian will clean up before returning failure to launchd.'
@@ -518,6 +639,8 @@ worker_exit() {
 }
 worker() {
   private_state "$1"
+  MAIN_LOG_STATE_VALID=1
+  main_logs_maintain
   set +m
   trap worker_exit EXIT
   trap 'exit 1' HUP INT TERM
@@ -563,7 +686,7 @@ worker() {
     runtime_owned || fail 'Service/PF/IPv6/downstream ownership changed.'
     [ "$(/usr/sbin/sysctl -n net.inet.ip.forwarding)" = 1 ] || fail 'Forwarding ownership changed.'
     ticks=$((ticks+1))
-    if [ "$((ticks%6))" = 1 ]; then rotate_diagnostics; upstream_observe; fi
+    if [ "$((ticks%6))" = 1 ]; then main_logs_maintain; rotate_diagnostics; upstream_observe; fi
     /bin/sleep 5
   done
 }
@@ -576,6 +699,15 @@ readonly_preflight() {
   preflight
   write_rules
 }
+# Only genuine daemon entry points may manage installed logs. In particular,
+# --preflight, help/errors, and a repository copy never maintain live log files.
+case "${1-}" in
+  --service) [ "$#" = 1 ] || fail 'Unexpected arguments.' ;;
+  --worker) [ "$#" = 2 ] || fail 'Unexpected worker arguments.' ;;
+  --preflight) [ "$#" = 1 ] || fail 'Unexpected arguments.' ;;
+  *) fail 'Usage: /Library/SoftRouter/gateway.sh --service|--preflight' ;;
+esac
+main_logs_entry "$0" "$@"
 installation_ok
 case "${1-}" in
   --service) [ "$#" = 1 ] || fail 'Unexpected arguments.'; guardian ;;

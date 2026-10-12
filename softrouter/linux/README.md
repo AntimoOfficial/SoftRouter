@@ -13,7 +13,7 @@ Use a desktop Linux distribution with Python 3.9 or newer, Tk, NetworkManager, n
 For Debian/Ubuntu, open the downloaded `.deb` in the system package installer, or install it with dependencies from a terminal in the download directory:
 
 ```sh
-sudo apt install ./SoftRouter-0.1.0-alpha.5-linux-test_all.deb
+sudo apt install ./SoftRouter-0.1.0-alpha.6-linux-test_all.deb
 ```
 
 For the release archive, extract its files, then run:

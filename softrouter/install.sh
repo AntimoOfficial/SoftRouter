@@ -35,8 +35,8 @@ check_payload() {
   [ "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "$base/org.softrouter.gateway.plist")" = /bin/bash ] || fail 'Wrong interpreter.'
   [ "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:1' "$base/org.softrouter.gateway.plist")" = "$INSTALL/gateway.sh" ] || fail 'Wrong installed daemon path.'
   [ "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:2' "$base/org.softrouter.gateway.plist")" = --service ] || fail 'Wrong service entry point.'
-  [ "$(/usr/libexec/PlistBuddy -c 'Print :StandardOutPath' "$base/org.softrouter.gateway.plist")" = "$LOGS/gateway.log" ] || fail 'Wrong log path.'
-  [ "$(/usr/libexec/PlistBuddy -c 'Print :StandardErrorPath' "$base/org.softrouter.gateway.plist")" = "$LOGS/error.log" ] || fail 'Wrong error log path.'
+  [ "$(/usr/libexec/PlistBuddy -c 'Print :StandardOutPath' "$base/org.softrouter.gateway.plist")" = /dev/null ] || fail 'Unexpected inherited stdout log descriptor.'
+  [ "$(/usr/libexec/PlistBuddy -c 'Print :StandardErrorPath' "$base/org.softrouter.gateway.plist")" = /dev/null ] || fail 'Unexpected inherited stderr log descriptor.'
 }
 # Renaming must not bypass the fresh-install boundary of the previous release.
 check_existing_deployment() {
@@ -50,6 +50,21 @@ check_existing_deployment() {
       fail "Existing gateway launchd job is loaded: $label"
     fi
   done
+}
+check_existing_logs() {
+  local name suffix
+  [ -e "$LOGS" ] || [ -L "$LOGS" ] || return 0
+  [ -d "$LOGS" ] && [ ! -L "$LOGS" ] && [ "$(/usr/bin/stat -f '%u:%Lp' "$LOGS")" = 0:755 ] || fail 'Existing log directory is not trusted.'
+  for name in gateway.log error.log guardian.log guardian-error.log; do
+    for suffix in '' .1 .2 .3; do
+      if [ -e "$LOGS/$name$suffix" ] || [ -L "$LOGS/$name$suffix" ]; then
+        regular_root_file "$LOGS/$name$suffix" 644 || fail "Untrusted existing log: $name$suffix"
+      fi
+    done
+  done
+  if [ -e "$LOGS/status.txt" ] || [ -L "$LOGS/status.txt" ]; then
+    regular_root_file "$LOGS/status.txt" 644 || fail 'Untrusted existing status.'
+  fi
 }
 usage() { printf 'Usage: /bin/bash install.sh --check\n       sudo /bin/bash install.sh --config /absolute/path/gateway.conf\n'; }
 if [ "${1-}" = --check ]; then
@@ -68,12 +83,7 @@ check_existing_deployment
 for p in /Library /Library/LaunchDaemons /Library/Logs /private/var/run; do
   [ -d "$p" ] && [ ! -L "$p" ] && [ "$(/usr/bin/stat -f %u "$p")" = 0 ] || fail "Unexpected parent directory: $p"
 done
-if [ -e "$LOGS" ] || [ -L "$LOGS" ]; then
-  [ -d "$LOGS" ] && [ ! -L "$LOGS" ] && [ "$(/usr/bin/stat -f '%u:%Lp' "$LOGS")" = 0:755 ] || fail 'Existing log directory is not trusted.'
-  for p in gateway.log error.log status.txt; do
-    if [ -e "$LOGS/$p" ] || [ -L "$LOGS/$p" ]; then regular_root_file "$LOGS/$p" 644 || fail "Untrusted existing log: $p"; fi
-  done
-fi
+check_existing_logs
 STAGE=$(/usr/bin/mktemp -d /private/tmp/softrouter-install.XXXXXXXX)
 /bin/chmod 700 "$STAGE"
 cleanup_install() {
@@ -147,7 +157,7 @@ done
 [ ! -e "$PLIST" ] && [ ! -L "$PLIST" ] || fail 'Launchd plist appeared concurrently; it was not overwritten.'
 PLIST_CREATED=1
 /usr/bin/install -o root -g wheel -m 644 "$STAGE/org.softrouter.gateway.plist" "$PLIST"
-for p in gateway.log error.log; do
+for p in gateway.log error.log guardian.log guardian-error.log; do
   if [ ! -e "$LOGS/$p" ]; then /usr/bin/install -o root -g wheel -m 644 /dev/null "$LOGS/$p"; fi
 done
 if /bin/bash "$INSTALL/gateway.sh" --preflight > "$STAGE/preflight.log" 2>&1; then

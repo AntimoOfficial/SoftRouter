@@ -244,7 +244,8 @@ printf '  "AppleClamshellState" = No\n  "private-registry-data" = "DO-NOT-RETAIN
 echo 0 > "$WORK/lid.rc"
 analyze_lid
 printf 'https://example.com/\tdirect\t28\t000\t8.0\n' > "$WORK/probes.tsv"
-awk -v out="$WORK" -f "$BASE/diagnostics/render.awk" "$WORK/facts.tsv" "$WORK/events.tsv" "$WORK/probes.tsv"
+record history observed '条件检索完成；未证明完整时间窗覆盖'
+awk -v out="$WORK" -f "$BASE/diagnostics/render.awk" "$WORK/facts.tsv" "$WORK/events.tsv" "$WORK/probes.tsv" "$WORK/history-summary.tsv"
 python3 - "$WORK" <<'PY'
 import json,pathlib,sys
 p=pathlib.Path(sys.argv[1]);d=json.loads((p/'report.json').read_text())
@@ -257,6 +258,10 @@ assert d['probes'][0]['curl_exit']=='28'
 assert '传输成功' not in d['probes'][0]['assessment']
 assert '<script>' not in (p/'report.md').read_text()
 assert len(d['events'])==4
+history=d['history_summary']
+assert history['event_count']==4 and history['retained_count']==4 and history['truncated'] is False
+assert history['auth_failure_count']==1 and history['last_abnormal_at']=='2026-01-01 01:00:04.000'
+assert history['collection_state']=='observed'
 facts={f['id']:f for f in d['facts']}
 assert facts['power_source']=={'id':'power_source','state':'observed','value':'AC'}
 assert facts['sleep_policy']['state']=='observed' and '整机全局禁睡' in facts['sleep_policy']['value']
@@ -268,10 +273,91 @@ assert '合盖实测记录（可选人工填写）' in md and '合盖期间是�
 assert '实际结果及中断情况 | unverified' in md
 assert 'DO-NOT-RETAIN' not in md and 'DO-NOT-RETAIN' not in (p/'report.json').read_text()
 PY
-passed=$((passed+17))
-for n in $(seq 1 400); do printf '2026-01-01 01:%s:00.000 configd DHCP en0: BOUND\n' "$n"; done > "$WORK/history.out"
-parse_events
-[ "$(wc -l < "$WORK/events.tsv" | tr -d ' ')" = 300 ]; passed=$((passed+1))
+passed=$((passed+20))
+# Reverse the input order and repeat private raw messages. Summary counts include
+# an old failure omitted from the newest-300 list, and count duplicate events once.
+python3 - "$WORK/history.out" <<'PY'
+from datetime import datetime,timedelta
+from pathlib import Path
+import sys
+start=datetime(2026,9,29)
+rows=[(start+timedelta(seconds=i)).strftime('%Y-%m-%d %H:%M:%S.000')+' eapolclient EAP Success identity=PRIVATE-ACCOUNT' for i in range(300)]
+rows += ['2026-09-28 00:00:00.000 eapolclient EAP Failure identity=PRIVATE-ACCOUNT',
+         '2026-10-01 03:00:00.000 eapolclient authentication failed ssid=PRIVATE-SSID',
+         '2026-10-01 03:00:01.000 airportd disassociated bssid=PRIVATE-BSSID',
+         '2026-10-01 03:00:02.000 configd DHCP en0: no server PRIVATE-ADDRESS']
+rows += [rows[300],rows[301],rows[302]]
+# An invalid timestamp is not copied into the selected evidence.
+rows += ['2026-10-01 PRIVATE-IDENTITY eapolclient EAP Failure']
+Path(sys.argv[1]).write_text('\n'.join(reversed(rows))+'\n')
+PY
+render_history() {
+  : > "$WORK/facts.tsv"; : > "$WORK/probes.tsv"
+  record service observed '服务已运行；不证明下游联网'
+  analyze_history
+  awk -v out="$WORK" -f "$BASE/diagnostics/render.awk" "$WORK/facts.tsv" "$WORK/events.tsv" "$WORK/probes.tsv" "$WORK/history-summary.tsv"
+}
+echo 0 > "$WORK/history.rc"
+render_history
+python3 - "$WORK" <<'PY'
+import json,pathlib,sys
+p=pathlib.Path(sys.argv[1]);raw=(p/'report.json').read_text();d=json.loads(raw);h=d['history_summary']
+assert d['schema_version']==1 and d['attention_count']==0
+assert h['event_count']==304 and h['retained_count']==300 and h['truncated'] is True
+assert h['auth_failure_count']==2 and h['wireless_disconnect_count']==1 and h['dhcp_no_server_count']==1
+assert h['last_abnormal_at']=='2026-10-01 03:00:02.000'
+assert h['collection_state']=='observed' and '完整时间窗覆盖未证实' in h['coverage']
+events=d['events'];assert len(events)==300 and events==sorted(events,key=lambda e:(e['time'],e['kind']))
+assert events[0]['time']=='2026-09-29 00:00:03.000'
+assert any(e['time']=='2026-10-01 03:00:00.000' and e['kind']=='认证失败' for e in events)
+assert not any(e['time'].startswith('2026-09-28') for e in events)
+md=(p/'report.md').read_text()
+assert '认证失败 2 条' in md and '已截断' in md and '不计入当前 attention_count' in md
+assert 'PRIVATE-' not in raw and 'PRIVATE-' not in md and 'PRIVATE-' not in (p/'events.tsv').read_text()
+PY
+passed=$((passed+11))
+# A real watchdog timeout with acquired evidence must retain the event and label
+# the summary partial. Commands below only print synthetic text and sleep.
+run_bounded history 1 /bin/bash -c "printf '2026-10-01 04:00:00.000 eapolclient EAP Failure identity=PRIVATE-ACCOUNT\n'; /bin/sleep 5"
+[ "$(cat "$WORK/history.rc")" = 124 ]; passed=$((passed+1))
+render_history
+python3 - "$WORK/report.json" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]));h=d['history_summary']
+assert h['collection_state']=='partial' and h['event_count']==1 and h['retained_count']==1
+assert h['auth_failure_count']==1 and h['truncated'] is False
+assert h['last_abnormal_at']=='2026-10-01 04:00:00.000'
+assert '部分结果' in h['coverage'] and d['attention_count']==0
+assert next(f for f in d['facts'] if f['id']=='history')['state']=='unknown'
+PY
+passed=$((passed+5))
+# Empty successful, failed and timed-out collection share zero acquired counts,
+# but preserve acquisition state and never turn empty output into zero failures.
+for history_rc in 0 1 124; do
+  : > "$WORK/history.out"; echo "$history_rc" > "$WORK/history.rc"
+  render_history
+  python3 - "$WORK" "$history_rc" <<'PY'
+import json,pathlib,sys
+p=pathlib.Path(sys.argv[1]);d=json.loads((p/'report.json').read_text());h=d['history_summary']
+assert h['collection_state']==('observed' if sys.argv[2]=='0' else 'unknown')
+assert h['event_count']==0 and h['retained_count']==0 and h['truncated'] is False
+assert h['auth_failure_count']==h['wireless_disconnect_count']==h['dhcp_no_server_count']==0
+assert h['last_abnormal_at'] is None and d['events']==[]
+assert '空结果不能解释为零故障' in (p/'report.md').read_text()
+PY
+  passed=$((passed+5))
+done
+# Skipping collection remains unverified, including when no summary TSV exists.
+: > "$WORK/facts.tsv"; : > "$WORK/events.tsv"; : > "$WORK/history-summary.tsv"
+record history unverified '用户选择跳过历史日志'
+awk -v out="$WORK" -f "$BASE/diagnostics/render.awk" "$WORK/facts.tsv" "$WORK/events.tsv" "$WORK/probes.tsv" "$WORK/history-summary.tsv"
+python3 - "$WORK/report.json" <<'PY'
+import json,sys
+h=json.load(open(sys.argv[1]))['history_summary']
+assert h['collection_state']=='unverified' and h['event_count']==0 and h['last_abnormal_at'] is None
+assert '未进行历史检索' in h['coverage']
+PY
+passed=$((passed+2))
 /bin/bash "$BASE/diagnose.sh" --help >/dev/null
 if /bin/bash "$BASE/diagnose.sh" --days 99 >/dev/null 2>&1; then exit 1; fi
 if /bin/bash "$BASE/diagnose.sh" --expected-ssid $'Campus\nInjected' >/dev/null 2>&1; then exit 1; fi

@@ -2,7 +2,7 @@
 
 本文适用于 macOS。Windows/Linux 的图形测试版与安装入口见 [平台指南](platforms.md)。macOS `0.1.0-alpha.5` 增加诊断证据摘要，分别展示供电与合盖、睡眠策略、主机网页请求及未独立验收的下游；这些是诊断快照，不是持续联网指示灯。
 
-从 [Releases](https://github.com/AntimoOfficial/SoftRouter/releases/latest) 下载 `SoftRouter-0.1.0-alpha.5-unsigned.pkg`。这是包含 Apple Silicon 与 Intel 架构的 macOS 14+ 安装包，运行时不需要 Git、Python、Xcode 或终端脚本。
+从 [Releases](https://github.com/AntimoOfficial/SoftRouter/releases/latest) 下载 `SoftRouter-0.1.0-alpha.6-unsigned.pkg`。这是包含 Apple Silicon 与 Intel 架构的 macOS 14+ 安装包，运行时不需要 Git、Python、Xcode 或终端脚本。
 
 ## 安装流程
 
@@ -13,6 +13,8 @@
 5. 状态为 RUNNING 后，将下游网线接到路由器 WAN，配置 WAN、网关和上游 DNS，再从下游设备验证网页。
 
 应用安装与网关启用是两个不同步骤。`.pkg` 只写入应用，不运行安装后脚本、不改变网络。应用导入配置不会立即改变网络，只有确认安装并完成系统授权后才调用严格预检的安装器。
+
+`0.1.0-alpha.6` 通过同一用户的私有文件锁保持图形应用单实例；重复启动请求显示既有窗口并自行退出，重新打开会恢复窗口。进程退出或崩溃后锁由系统释放，无需删除锁文件。旧版本不持有该锁，其识别只依赖可见的应用注册信息，属于尽力兼容。LaunchServices 辅助限制同时禁止不同登录会话并行打开 GUI。此限制只作用于图形应用，退出应用不会停止 launchd 网关。
 
 `0.1.0-alpha.4` 更新应用图标与界面，仍需用户导入配置，没有自动发现向导或自动迁移。下游服务仍须按部署手册准备好；已有网关或 PF 占用会被拒绝。校园认证、路由器设置和合盖不由安装按钮自动完成。用户通过本机系统提示授权，应用不读取或保存密码。
 
@@ -39,6 +41,8 @@
 ```
 
 默认从已审计的 HEAD 提交构建。开发时可使用 `--worktree`，构建信息会标记为未提交预览，不能把它冒充某个已发布提交。产物写入忽略的 `dist/`；不要将二进制加入 Git。
+
+`0.1.0-alpha.6` 构建按应用全部文件的内容摘要命名预览目录，并核对其与包内应用一致；同版本的不同构建不复用旧目录，也不覆盖可能仍在运行的旧预览。构建与自测不自动启动图形应用。
 
 ## 只读巡检
 

@@ -9,6 +9,13 @@ Read README.md, softrouter/docs/ai-setup.md, and softrouter/docs/compatibility.m
 - Preparing the repository does not authorize installing it on a working gateway. Distinguish source changes, offline tests, and live deployment.
 - Do not infer that planned commands exist. Use the commands documented in the current installation guide; roadmap interfaces are not implemented.
 
+## Manual recent reports
+
+- For a user-requested recent software or operating summary, follow softrouter/docs/diagnostics.md and softrouter/skills/softrouter-health/SKILL.md. Reuse the GUI report action, documented diagnose CLI, and local Markdown/JSON output; do not add a runtime API or background monitor merely to report status.
+- Include read-only GitHub evidence: remote/default-branch and local HEAD, public dirty changes, release and exact-commit push CI; 14-day views/unique visitors/clones/unique cloners with the actual returned dates and gaps; stars distinguished from owner/maintainer stars, forks/watchers, all-state issues/PRs/comments, discussions and asset download counts.
+- Use available connectors or existing CLI authentication, keep credentials local, and report inaccessible statistics as unknown rather than zero. Do not force login or equate clones/downloads with users. Keep local network evidence, release verification and independent feedback distinct.
+- This reporting workflow does not authorize deployment, repository changes, automatic outreach, or publication of private diagnostics or configuration. Separate a focused network fault investigation from an overall project summary.
+
 ## Network operations
 
 - Discover interface, network service UUID, MAC, routes and DNS from the actual host. Never copy example device identities into a live configuration.

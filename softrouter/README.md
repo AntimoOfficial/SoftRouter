@@ -92,6 +92,8 @@ sudo /bin/bash install.sh --config /path/gateway.conf
 
 安装位置为 `/Library/SoftRouter`，launchd 标签为 `org.softrouter.gateway`。日志保存在 `/Library/Logs/SoftRouter`，本轮私有运行状态位于 `/private/var/run/softrouter`。
 
+`0.1.0-alpha.6` 为转发进程保留 `gateway.log` 与 `error.log`，另以 `guardian.log` 与 `guardian-error.log` 记录守护进程的标准输出和错误。每个进程只维护自己的两个输出文件，达到 1 MiB 阈值后保留 `.1`、`.2`、`.3` 三代并重新打开输出，避免 launchd 持续写入已轮转的旧文件。大小阈值在进程检查与结构化日志写入时执行，单次命令输出仍可能越过阈值；这不是严格磁盘配额。不可信的日志对象不会被覆盖，日志维护失败不触发网络清理或停止转发。
+
 确认状态为 `RUNNING` 后，将网线接到下游路由器的 WAN 口。自行将路由器 WAN 设为 `CLIENT_ADDRESS`、掩码 `255.255.255.0`、网关 `GATEWAY_ADDRESS`，DNS 使用该上游可访问的解析器；路由器 LAN 使用不同子网。项目不修改路由器配置。
 
 测试时确认客户端确实连接下游路由器，并关闭测试设备的蜂窝数据、其他热点与 VPN，避免把其他路径的成功当作共享成功。`RUNNING` 表示网关配置已建立，不代表上游已认证或互联网可达。完整验收方法见 [测试说明](docs/testing.md)。

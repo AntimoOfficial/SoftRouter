@@ -219,6 +219,7 @@ parse_events() {
   # Only fixed event names and timestamps are retained; no SSID/BSSID, identity or raw EAP packets.
   /usr/bin/awk '
     /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] / {
+      if($2 !~ /^[0-2][0-9]:[0-5][0-9]:[0-5][0-9]([.][0-9]+)?([+-][0-9][0-9][0-9][0-9])?$/) next
       kind=""; line=tolower($0)
       if(index(line,"eap failure") || index(line,"authentication failed")) kind="认证失败"
       else if(index(line,"eap success")) kind="认证成功"
@@ -227,7 +228,27 @@ parse_events() {
       else if(line ~ /dhcp en[0-9]+: bound/) kind="DHCP 租约确认"
       else if(index(line,"no server")) kind="DHCP 未获服务器回复"
       else if(index(line,"unexpected link down") || index(line,"disassociated")) kind="无线断链"
-      key=$1 " " $2 "\t" kind
-      if(kind!="" && !seen[key]++) {print key; if(++count==300) exit}
-    }' "$WORK/history.out" > "$WORK/events.tsv"
+      if(kind!="") print $1 " " $2 "\t" kind
+    }' "$WORK/history.out" > "$WORK/events-all.tsv"
+  # System logs share their original time zone. Sort sanitized timestamps before
+  # retaining the newest events; count every acquired unique event, not only 300.
+  /usr/bin/sort -u "$WORK/events-all.tsv" > "$WORK/events-sorted.tsv"
+  /usr/bin/tail -n 300 "$WORK/events-sorted.tsv" > "$WORK/events.tsv"
+  /usr/bin/awk -F '\t' '
+    $2=="认证失败" {auth++; last=$1}
+    $2=="无线断链" {wireless++; last=$1}
+    $2=="DHCP 未获服务器回复" {dhcp++; last=$1}
+    END {
+      printf "event_count\t%d\nretained_count\t%d\ntruncated\t%d\n", NR, (NR>300?300:NR), (NR>300)
+      printf "auth_failure_count\t%d\nwireless_disconnect_count\t%d\ndhcp_no_server_count\t%d\n", auth, wireless, dhcp
+      printf "last_abnormal_at\t%s\n", last
+    }' "$WORK/events-sorted.tsv" > "$WORK/history-summary.tsv"
+}
+analyze_history() {
+  parse_events
+  if command_ok history; then
+    record history observed '条件检索完成；统计全部取得的去重事件，列表仅保留最近 300 条；未证明系统日志完整覆盖请求时间窗'
+  else
+    record history unknown '检索失败、超时或达到输出限制；计数只覆盖已取得的部分证据，空白不代表零故障，也未证明完整时间窗覆盖'
+  fi
 }

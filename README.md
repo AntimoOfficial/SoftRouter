@@ -24,7 +24,7 @@ macOS 负责校园或企业 802.1X 认证，SoftRouter 负责有线转发与常�
 
 部署时须在这台 Mac 上保留目标上游的自动加入，并关闭下游路由器 Wi-Fi 的自动加入，避免上游断线后误连自身下游。设置保留凭据，不必忘记网络；核对方法见 [AI 部署手册](softrouter/docs/ai-setup.md#2-生成本地配置和具体计划)。
 
-当前为 `0.1.0-alpha.5` 实验版本。离线检查不等于真实联网验收；专用部署的成功不能推广为所有系统和网卡均受支持。详见 [兼容性与验证范围](softrouter/docs/compatibility.md)。
+当前为 `0.1.0-alpha.6` 实验版本。离线检查不等于真实联网验收；专用部署的成功不能推广为所有系统和网卡均受支持。详见 [兼容性与验证范围](softrouter/docs/compatibility.md)。
 
 ## 下载并双击安装
 
@@ -34,7 +34,9 @@ macOS 负责校园或企业 802.1X 认证，SoftRouter 负责有线转发与常�
 
 ## 网络巡检
 
-应用内点击「生成诊断报告」，或运行 `/bin/bash softrouter/diagnose.sh --days 3`，生成本地 Markdown 和 JSON 报告。无需管理员权限，不改变网络。可选比较指定公开网站的直连与本机代理路径。详见 [巡检 SOP](softrouter/docs/diagnostics.md) 与 [AI Skill](softrouter/skills/softrouter-health/SKILL.md)。
+应用内点击「生成诊断报告」，或运行 `/bin/bash softrouter/diagnose.sh --days 3`，生成本地 `report.md`（供人阅读）和 `report.json`（schema 1，供 AI 解析）。无需管理员权限，不改变网络；可选比较指定公开网站的主机直连与本机代理路径。
+
+人工巡检还包括真实下游验收，以及 GitHub 的 Stars、访问与克隆统计、Issues 和社区反馈。完整流程见 [巡检 SOP](softrouter/docs/diagnostics.md) 与 [AI Skill](softrouter/skills/softrouter-health/SKILL.md)。
 
 `0.1.0-alpha.4` 增加应用图标、界面改进，以及可选 `--expected-ssid` 和图形界面的期望 Wi-Fi 字段。该诊断用于发现当前上游网络错配，不锁定网络或自动切网；自动加入仍需在系统设置中确认。
 

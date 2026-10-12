@@ -95,12 +95,19 @@ cp "$source/macos/resources/Welcome.html" "$source/macos/resources/Conclusion.ht
 cp "$source/macos/assets/SoftRouterIcon.png" "$scratch/installer-resources/SoftRouterIcon.png"
 /usr/bin/productbuild --distribution "$source/macos/Distribution.xml" \
   --resources "$scratch/installer-resources" --package-path "$scratch" "$output"
-python3 "$source/tools/verify-macos.py" "$output"
-(cd "$REPO/dist" && shasum -a 256 "$(basename "$output")" > "$(basename "$output").sha256")
-# Preserve one disposable GUI preview; this is not installed or started.
-preview="$REPO/dist/macos-preview-$version"
-if [ ! -e "$preview" ]; then
+# A version can be rebuilt with changed code. Name previews by all final app
+# contents, and never replace an existing or potentially running app directory.
+fingerprint=$(python3 "$source/tools/verify-macos.py" --app-fingerprint "$app")
+[[ "$fingerprint" =~ ^[a-f0-9]{64}$ ]] || { printf 'Invalid app fingerprint\n' >&2; exit 1; }
+preview="$REPO/dist/macos-preview-$version-$fingerprint"
+if [ -e "$preview" ] || [ -L "$preview" ]; then
+  [ -d "$preview" ] && [ ! -L "$preview" ] && [ -d "$preview/SoftRouter.app" ] && [ ! -L "$preview/SoftRouter.app" ] || {
+    printf 'Untrusted existing preview preserved: %s\n' "$preview" >&2; exit 1;
+  }
+else
   mkdir "$preview"
   /usr/bin/ditto "$app" "$preview/SoftRouter.app"
 fi
-printf 'Package: %s\nSource: %s\nUnsigned preview; no live installation performed.\n' "$output" "$revision"
+python3 "$source/tools/verify-macos.py" "$output" "$preview/SoftRouter.app"
+(cd "$REPO/dist" && shasum -a 256 "$(basename "$output")" > "$(basename "$output").sha256")
+printf 'Package: %s\nSource: %s\nPreview: %s/SoftRouter.app\nUnsigned preview; not installed or started.\n' "$output" "$revision" "$preview"

@@ -11,6 +11,7 @@ BEGIN {
   labels["dns"]="系统 DNS（所有作用域）"; labels["proxy"]="系统代理设置"; labels["power"]="睡眠设置"; labels["battery"]="供电状态"
   labels["power_source"]="当前供电来源"; labels["sleep_policy"]="睡眠策略解释"; labels["lid_state"]="当前机盖状态"; labels["downstream_speed"]="下游链路速率"
   labels["gateway_log"]="网关日志元信息"; labels["error_log"]="错误日志元信息"; labels["pf"]="实时 PF"
+  labels["guardian_log"]="守护进程日志元信息"; labels["guardian-error_log"]="守护进程错误日志元信息"
   labels["downstream_access"]="真实下游访问"; labels["history"]="历史检索完成情况"
 }
 function json(s,    i,c,r) {
@@ -34,6 +35,7 @@ function safe(s) {
 }
 FILENAME ~ /facts.tsv$/ { n++; keys[n]=$1; states[n]=$2; values[n]=$3; fact_states[$1]=$2; fact_values[$1]=$3; if($2=="attention") attention++; if($2=="unknown" || $2=="unverified") unknown++; next }
 FILENAME ~ /events.tsv$/ { e++; times[e]=$1; kinds[e]=$2; next }
+FILENAME ~ /history-summary.tsv$/ { history[$1]=$2; next }
 FILENAME ~ /probes.tsv$/ {
   p++; urls[p]=$1; modes[p]=$2; codes[p]=$3; http[p]=$4; elapsed[p]=$5
   if($3!="0") outcomes[p]="请求未完成，可能是解析、连接、TLS、超时或内容大小限制；不能只归因于网关"
@@ -42,6 +44,16 @@ FILENAME ~ /probes.tsv$/ {
   next
 }
 END {
+  history_count=history["event_count"]+0; retained_count=history["retained_count"]+0
+  history_truncated=history["truncated"]+0
+  history_state=("history" in fact_states)?fact_states["history"]:"unknown"
+  if(history_state=="unknown" && history_count>0) history_state="partial"
+  history_coverage="检索已返回；仅统计已取得事件，完整时间窗覆盖未证实"
+  if(history_state=="partial") history_coverage="部分结果：检索失败、超时或输出受限；完整时间窗覆盖未证实"
+  else if(history_state=="unknown") history_coverage="未取得有效历史证据；空结果不代表零故障"
+  else if(history_state=="unverified") history_coverage="未进行历史检索；空结果不代表零故障"
+  if(history_truncated) history_coverage=history_coverage "；列表仅保留最近 300 条"
+  last_abnormal=history["last_abnormal_at"]
   print "# SoftRouter 网络诊断报告" > md
   print "\n这是当前状态和留存事件的只读快照，不是持续监控或自动修复。报告生成成功不等于网络健康。" > md
   print "\n## 证据摘要\n\n| 维度 | 当前结论 |\n|---|---|" > md
@@ -52,6 +64,13 @@ END {
   print "| 真实下游访问 | unverified；本报告未从下游客户端测量，不能由服务状态、Mac 请求或链路速率推定 |" > md
   print "\n当前供电与合盖：" safe(("power_source" in fact_values)?fact_values["power_source"]:"unknown") "；" safe(("lid_state" in fact_values)?fact_values["lid_state"]:"unknown") "。" > md
   print "\n睡眠策略：" safe(("sleep_policy" in fact_values)?fact_values["sleep_policy"]:"unknown；未取得睡眠策略证据") "。" > md
+  print "\n## 历史采集与事件摘要\n\n| 项目 | 留存证据 |\n|---|---|" > md
+  print "| 采集状态 | " history_state "；" safe(history_coverage) " |" > md
+  print "| 已取得的去重事件 | " history_count " 条；列表保留最近 " retained_count " 条；" (history_truncated?"已截断":"未因 300 条上限截断") " |" > md
+  print "| 历史异常事件 | 认证失败 " (history["auth_failure_count"]+0) " 条；无线断链 " (history["wireless_disconnect_count"]+0) " 条；DHCP 未获服务器回复 " (history["dhcp_no_server_count"]+0) " 条 |" > md
+  print "| 最后取得的异常时间 | " safe(last_abnormal!=""?last_abnormal:"未取得；不能解释为零故障") " |" > md
+  print "\n计数覆盖全部已取得的去重事件，列表仅保留按时间排序的最近 300 条。命令失败、超时或达到输出限制时，计数也是部分证据；命令成功也不证明日志完整覆盖请求时间窗。空结果不能解释为零故障。" > md
+  print "\n历史异常不表示当前仍在故障；上述计数只统计事件记录，同一次故障可能产生多条记录，不计入当前 attention_count，也不是断网次数、精确断网时长或可用率。事件不保证均来自选定上游。" > md
   print "\n## 当前证据\n\n| 检查项 | 证据状态 | 观察结果 |\n|---|---|---|" > md
   for(i=1;i<=n;i++) print "| " safe((keys[i] in labels)?labels[keys[i]]:keys[i]) " | " safe(states[i]) " | " safe(values[i]) " |" > md
   print "\nobserved 表示取得证据；attention 表示发现需核实的不一致；unknown 表示未取得有效证据；unverified 表示未进行该项验收。" > md
@@ -73,6 +92,6 @@ END {
   for(i=1;i<=e;i++) print (i>1?",":"") "{\"time\":" json(times[i]) ",\"kind\":" json(kinds[i]) "}" > js
   print "],\"probes\":[" > js
   for(i=1;i<=p;i++) print (i>1?",":"") "{\"url\":" json(urls[i]) ",\"path\":" json(modes[i]) ",\"curl_exit\":" json(codes[i]) ",\"http\":" json(http[i]) ",\"seconds\":" json(elapsed[i]) ",\"assessment\":" json(outcomes[i]) "}" > js
-  print "],\"downstream_verified\":false,\"availability_percent\":null,\"attention_count\":" (attention+0) ",\"unknown_or_unverified_count\":" (unknown+0) "}" > js
+  print "],\"history_summary\":{\"event_count\":" history_count ",\"retained_count\":" retained_count ",\"truncated\":" (history_truncated?"true":"false") ",\"auth_failure_count\":" (history["auth_failure_count"]+0) ",\"wireless_disconnect_count\":" (history["wireless_disconnect_count"]+0) ",\"dhcp_no_server_count\":" (history["dhcp_no_server_count"]+0) ",\"last_abnormal_at\":" (last_abnormal!=""?json(last_abnormal):"null") ",\"collection_state\":" json(history_state) ",\"coverage\":" json(history_coverage) "},\"downstream_verified\":false,\"availability_percent\":null,\"attention_count\":" (attention+0) ",\"unknown_or_unverified_count\":" (unknown+0) "}" > js
   close(md);close(js)
 }

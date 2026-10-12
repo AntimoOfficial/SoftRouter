@@ -65,7 +65,7 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 130' INT HUP TERM
-: > "$WORK/facts.tsv"; : > "$WORK/events.tsv"; : > "$WORK/probes.tsv"
+: > "$WORK/facts.tsv"; : > "$WORK/events.tsv"; : > "$WORK/probes.tsv"; : > "$WORK/history-summary.tsv"
 record collected_at observed "$(date '+%Y-%m-%d %H:%M:%S %z')"
 record label observed "$LABEL"
 record window observed "$DAYS days; $(date -v-"${DAYS}"d '+%Y-%m-%d %H:%M:%S') to $(date '+%Y-%m-%d %H:%M:%S')"
@@ -135,7 +135,7 @@ observation dns "$(awk '/nameserver\[[0-9]+\]/{print $3}' "$WORK/dns.out" | sort
 observation proxy "$(awk '$1 ~ /^(HTTPEnable|HTTPSEnable|HTTPProxy|HTTPPort|HTTPSProxy|HTTPSPort|SOCKSEnable|ProxyAutoConfigEnable)$/ {print $1 "=" $3}' "$WORK/proxy.out")"
 observation power "$(awk '/SleepDisabled|^[[:space:]]*sleep /{print $1 "=" $2}' "$WORK/power.out")"
 observation battery "$(awk '/Now drawing from/{print} /charged|charging|discharging/{sub(/^.*\t/, "");print}' "$WORK/battery.out")"
-for name in gateway error; do
+for name in gateway error guardian guardian-error; do
   if [ -f "$LOGS/$name.log" ] && [ ! -L "$LOGS/$name.log" ]; then
     record "${name}_log" observed "$(stat -f 'modified=%Sm; bytes=%z' -t '%Y-%m-%d %H:%M:%S %z' "$LOGS/$name.log")"
   else record "${name}_log" unknown '日志文件不存在或不可访问'; fi
@@ -146,9 +146,7 @@ if [ "$HISTORY" = 1 ]; then
   printf 'Inspecting bounded historical events (up to 20 seconds)…\n'
   predicate='((process == "eapolclient" OR process == "airportd") AND (eventMessage CONTAINS[c] "EAP Success" OR eventMessage CONTAINS[c] "EAP Failure" OR eventMessage CONTAINS[c] "authentication failed" OR eventMessage CONTAINS[c] "Unexpected link down" OR eventMessage CONTAINS[c] "disassociated")) OR (process == "configd" AND (eventMessage CONTAINS[c] "Wi-Fi roam" OR eventMessage CONTAINS[c] "DHCP en"))'
   run_bounded history 20 /usr/bin/log show --start "$(date -v-"${DAYS}"d '+%Y-%m-%d %H:%M:%S')" --end "$(date '+%Y-%m-%d %H:%M:%S')" --style compact --info --predicate "$predicate"
-  parse_events
-  if command_ok history; then record history observed '条件检索完成；最多保留 300 条事件，未证明系统日志完整覆盖整个时间窗'
-  else record history unknown '检索失败、超时或达到输出限制；已有事件仅为部分结果，空白不代表零故障'; fi
+  analyze_history
 else record history unverified '用户选择跳过历史日志'; fi
 index=0
 for url in "${URLS[@]-}"; do
@@ -164,7 +162,7 @@ for url in "${URLS[@]-}"; do
     /bin/rm -f "$WORK/body"
   done
 done
-awk -v out="$REPORT" -f "$BASE/diagnostics/render.awk" "$WORK/facts.tsv" "$WORK/events.tsv" "$WORK/probes.tsv"
+awk -v out="$REPORT" -f "$BASE/diagnostics/render.awk" "$WORK/facts.tsv" "$WORK/events.tsv" "$WORK/probes.tsv" "$WORK/history-summary.tsv"
 cat "$WORK/facts.tsv" > "$REPORT/evidence.tsv"
 printf 'REPORT_DIR=%s\n' "$REPORT"
 printf 'Report generated. Read unknown/unverified items; this is not an online-rate measurement.\n'

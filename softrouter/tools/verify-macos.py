@@ -1,13 +1,53 @@
 #!/usr/bin/env python3
 """Inspect the installer payload without executing it or installing anything."""
+import hashlib
 import pathlib
 import plistlib
+import stat
 import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
 
+
+def app_fingerprint(app):
+    app = pathlib.Path(app)
+    assert app.is_dir() and not app.is_symlink(), 'Expected an app directory without symlinks'
+    digest = hashlib.sha256()
+    files = 0
+    for item in sorted(app.rglob('*')):
+        assert not item.is_symlink(), 'Preview payload symlinks are forbidden'
+        if item.is_dir():
+            continue
+        info = item.stat()
+        assert stat.S_ISREG(info.st_mode), 'Preview payload must contain regular files'
+        digest.update(item.relative_to(app).as_posix().encode('utf-8') + b'\0')
+        digest.update(str(stat.S_IMODE(info.st_mode)).encode('ascii') + b'\0')
+        digest.update(str(info.st_size).encode('ascii') + b'\0')
+        with item.open('rb') as source:
+            for chunk in iter(lambda: source.read(1048576), b''):
+                digest.update(chunk)
+        files += 1
+    assert files, 'Empty app payload'
+    return digest.hexdigest()
+
+
+def verify_preview(app, preview):
+    assert app_fingerprint(preview) == app_fingerprint(app), 'Preview does not match the package payload'
+    executable = pathlib.Path('Contents/MacOS/SoftRouter')
+    expected = hashlib.sha256((app / executable).read_bytes()).hexdigest()
+    actual = hashlib.sha256((preview / executable).read_bytes()).hexdigest()
+    assert actual == expected, 'Preview executable does not match the package payload'
+    return actual
+
+
+if len(sys.argv) == 3 and sys.argv[1] == '--app-fingerprint':
+    print(app_fingerprint(sys.argv[2]))
+    sys.exit(0)
+if len(sys.argv) not in (2, 3):
+    raise SystemExit('Usage: verify-macos.py PACKAGE [PREVIEW_APP]\n       verify-macos.py --app-fingerprint APP')
 package = pathlib.Path(sys.argv[1]).resolve()
+preview = pathlib.Path(sys.argv[2]) if len(sys.argv) == 3 else None
 with tempfile.TemporaryDirectory(prefix='softrouter-pkg-check-') as temp:
     expanded = pathlib.Path(temp) / 'expanded'
     subprocess.run(['/usr/sbin/pkgutil', '--expand-full', str(package), str(expanded)], check=True, stdout=subprocess.DEVNULL)
@@ -31,6 +71,7 @@ with tempfile.TemporaryDirectory(prefix='softrouter-pkg-check-') as temp:
     metadata = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
     assert metadata['CFBundleIdentifier'] == 'org.softrouter.setup'
     assert metadata['LSMinimumSystemVersion'] == '14.0'
+    assert metadata['LSMultipleInstancesProhibited'] is True
     assert metadata['CFBundleIconFile'] == 'SoftRouter.icns'
     resources = app / 'Contents/Resources'
     assert (resources / 'SoftRouterIcon.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
@@ -57,5 +98,7 @@ with tempfile.TemporaryDirectory(prefix='softrouter-pkg-check-') as temp:
     assert set(architectures) == {'arm64', 'x86_64'}, 'Missing universal architecture'
     subprocess.run(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)], check=True)
     subprocess.run([str(executable), '--self-test'], check=True)
+    if preview is not None:
+        print('Preview verified against package payload; executable SHA-256: ' + verify_preview(app, preview))
     print('Package audit passed: app-only payload, no install scripts, universal binary and ad-hoc integrity verified.')
     print('No Developer ID signature, notarization or live installation was tested.')

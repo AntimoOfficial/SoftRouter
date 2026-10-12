@@ -30,6 +30,8 @@ Process lifetime is not network uptime. An HTTP response is not proof that the i
 
 The macOS application includes local diagnostics and power-policy interpretation. Windows and Linux editions deliberately use their operating system's sharing backend rather than claiming the same packet-filter behavior. See [compatibility](compatibility.md).
 
+Version `0.1.0-alpha.6` adds macOS GUI single-instance protection and a recent-event summary with truncation and collection limits. The GUI and diagnostic CLI generate local `report.md` for people and schema 1 `report.json` for AI tools; see the [diagnostic workflow](diagnostics.md). Updating the application does not upgrade an existing gateway.
+
 ## Contribute
 
 The most useful early contribution is a reproducible platform test: OS and adapter versions, app installation, real downstream access, and restoration after disabling sharing. Never post credentials or complete network preferences. [MIT license](../../LICENSE).
