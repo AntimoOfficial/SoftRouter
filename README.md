@@ -2,87 +2,92 @@
 
 <img src='softrouter/macos/assets/SoftRouterIcon.png' width='88' alt='SoftRouter icon'>
 
-用已有电脑把 Wi-Fi 分享给有线路由器，把部署交给你的 AI。
+**Share a computer’s Wi-Fi connection with an Ethernet router. Let your local AI assistant guide the setup.**
 
-[下载软件](https://github.com/AntimoOfficial/SoftRouter/releases/latest) · [English](softrouter/docs/README.en.md) · [社区测试反馈](https://github.com/AntimoOfficial/SoftRouter/issues/new?template=platform-test.md)
+[Download](https://github.com/AntimoOfficial/SoftRouter/releases/latest) · [简体中文](README.zh-CN.md) · [AI setup guide](softrouter/docs/ai-setup.en.md) · [Report a problem](https://github.com/AntimoOfficial/SoftRouter/issues/new/choose)
+
+SoftRouter is an experimental **Wi-Fi-to-Ethernet software router**. It turns a computer with an authenticated Wi-Fi connection and a separate Ethernet adapter into an IPv4 gateway for a regular router. Devices connect through that router’s existing LAN or Wi-Fi.
+
+The macOS backend uses **PF, IPv4 NAT and launchd**. Separate **Windows Internet Connection Sharing (ICS)** and **Linux NetworkManager** editions are available for community testing. Deployment guides and local Markdown/JSON diagnostics help humans and AI assistants inspect the same evidence.
 
 ```text
-校园 / 企业 Wi-Fi → 电脑完成认证与共享 → 路由器 WAN → LAN / Wi-Fi 设备
+Campus / enterprise Wi-Fi (including OS-managed 802.1X authentication)
+    → computer running SoftRouter → Ethernet → router WAN → LAN / Wi-Fi devices
 ```
 
-| 平台 | 下载与安装 | 当前实现和证据 |
+## When to use it
+
+- Share campus or enterprise Wi-Fi with devices behind a wired router, after the computer has authenticated through its operating system.
+- Use a Mac as a Wi-Fi-to-Ethernet IPv4 gateway with an ordinary router and USB Ethernet adapter.
+- Let an AI assistant with local tools inspect interfaces, prepare a concrete configuration and recovery plan, and follow documented installation steps.
+- Collect local network diagnostics for troubleshooting DNS, Wi-Fi authentication events, DHCP, link state and power conditions.
+
+The operating system handles Wi-Fi authentication and credentials. SoftRouter routes traffic; it does not implement a campus login protocol or provide a VPN service.
+
+## Download and platform status
+
+Current release: **0.1.0-alpha.6**, an experimental release. [Release notes and downloads](https://github.com/AntimoOfficial/SoftRouter/releases/latest).
+
+| Platform | Download and entry point | Backend and validation |
 |---|---|---|
-| macOS 14+ | `.pkg`，双击安装应用 | PF 与 launchd；已有专用部署实测，通用安装仍待验收 |
-| Windows 10/11 | `windows-test.zip`，解压后双击 `Install.cmd` | 原生 ICS 图形助手；首批测试版，未做真实联网验收 |
-| Linux 桌面 | `linux-test_all.deb` 或 `linux-test.tar.gz` | NetworkManager 共享与图形助手；首批测试版，未做真实联网验收 |
+| macOS 14+, Apple Silicon / Intel | Universal `.pkg`; install and open SoftRouter | PF/NAT and launchd. A dedicated deployment has real downstream evidence; the generic installer still needs end-to-end validation. |
+| Windows 10/11 | `windows-test.zip`; extract and run `Install.cmd` | Native ICS community test edition; offline tests only, no real downstream validation yet. |
+| Linux desktop | `linux-test_all.deb` or `linux-test.tar.gz` | NetworkManager shared connection community test edition; offline tests only, no real downstream validation yet. |
 
-三端均先安装应用，再由用户选择接口并启用共享。Windows/Linux 与 macOS 使用不同后端，配置文件不能混用。见 [跨平台入口](softrouter/docs/platforms.md)。
+The packages install the application first. Enabling network sharing is a separate operation. The macOS app carries an ad-hoc integrity signature; its installer package is unsigned, with no Developer ID signing or notarization. Windows/Linux packages also lack publisher signing. Existing gateways are preserved, with no automatic migration or update.
 
-SoftRouter 将保持唤醒的 Mac 作为 IPv4 网关：Mac 通过 Wi-Fi 连接上游，独立以太网接口连接路由器 WAN，下游设备使用路由器的 LAN 或 Wi-Fi。
+Platform-specific instructions: [macOS desktop installer](softrouter/docs/desktop-installer.md), [Windows ICS](softrouter/windows/README.md), [Linux NetworkManager](softrouter/linux/README.md). The Windows and Linux READMEs are in English. Some macOS and operational manuals remain in Chinese; the [English AI setup guide](softrouter/docs/ai-setup.en.md) explains the macOS workflow.
 
-macOS 负责校园或企业 802.1X 认证，SoftRouter 负责有线转发与常驻管理。上游暂时断线时服务保持运行，上游恢复后客户端可以重新建立连接。
+## Set up with your local AI assistant
 
-部署时须在这台 Mac 上保留目标上游的自动加入，并关闭下游路由器 Wi-Fi 的自动加入，避免上游断线后误连自身下游。设置保留凭据，不必忘记网络；核对方法见 [AI 部署手册](softrouter/docs/ai-setup.md#2-生成本地配置和具体计划)。
+Give the repository URL and this prompt to an assistant that can use tools on your computer:
 
-当前为 `0.1.0-alpha.6` 实验版本。离线检查不等于真实联网验收；专用部署的成功不能推广为所有系统和网卡均受支持。详见 [兼容性与验证范围](softrouter/docs/compatibility.md)。
+> Read README.md, AGENTS.md, the English AI setup guide and the instructions for my operating system. Inspect the current network, interfaces and existing gateways without changing them. Identify the authenticated Wi-Fi upstream and an unused Ethernet interface. Prepare the exact configuration and recovery plan, then use the documented installer only if this is a fresh installation. Keep credentials local. Verify internet access from a real downstream device, and distinguish successful, failed and untested steps.
 
-## 下载并双击安装
+A chat-only assistant can explain the procedure; local tools are needed to perform it. You may need to connect cables and enter administrator or network credentials directly on your computer.
 
-[打开 Release 下载页](https://github.com/AntimoOfficial/SoftRouter/releases/latest)。Mac 下载 `.pkg` 后双击安装应用，再导入 AI 按部署指南生成的本机配置，通过系统授权安装网关。详见 [图形安装说明](softrouter/docs/desktop-installer.md)。Windows/Linux 使用表格中的独立入口。
+Start here: [English AI setup guide](softrouter/docs/ai-setup.en.md) · [中文部署手册](softrouter/docs/ai-setup.md) · [Compatibility and test evidence](softrouter/docs/compatibility.md).
 
-安装包支持 macOS 14+ 的 Apple Silicon 与 Intel，当前未使用 Developer ID 签名或 Apple 公证，首次打开可能被 macOS 拦截。包只安装应用，网络转发需在应用内明确启用；已有部署不会自动迁移。
+## Local diagnostics for people and AI
 
-## 网络巡检
-
-应用内点击「生成诊断报告」，或运行 `/bin/bash softrouter/diagnose.sh --days 3`，生成本地 `report.md`（供人阅读）和 `report.json`（schema 1，供 AI 解析）。无需管理员权限，不改变网络；可选比较指定公开网站的主机直连与本机代理路径。
-
-人工巡检还包括真实下游验收，以及 GitHub 的 Stars、访问与克隆统计、Issues 和社区反馈。完整流程见 [巡检 SOP](softrouter/docs/diagnostics.md) 与 [AI Skill](softrouter/skills/softrouter-health/SKILL.md)。
-
-`0.1.0-alpha.4` 增加应用图标、界面改进，以及可选 `--expected-ssid` 和图形界面的期望 Wi-Fi 字段。该诊断用于发现当前上游网络错配，不锁定网络或自动切网；自动加入仍需在系统设置中确认。
-
-## 交给 AI 配置
-
-把本仓库地址和下面这段话交给能操作本机终端的 AI：
-
-> 请读取仓库的 README.md、AGENTS.md 和 softrouter/docs/ai-setup.md，帮助我把这台 Mac 配置为 Wi-Fi 上游、有线路由器下游的共享网关。先只读检查环境，形成具体配置与恢复方案，再完成安装和真实下游验收。需要我接线、输入密码或提供权限时说明具体操作。
-
-Windows/Linux 将上述 Mac 改为本机平台，并先让 AI 读取 `softrouter/docs/platforms.md` 和对应平台 README；不要在这两端执行 macOS 的 PF 脚本。
-
-只有聊天能力的 AI 可以指导命令，不能自行配置电脑。管理员认证、校园认证和接线可能需要用户参与。没有浏览器控制能力或路由器管理会话时，由用户按 AI 生成的 WAN 参数表填写。
-
-- [AI 部署手册](softrouter/docs/ai-setup.md)：判断顺序、现有命令、失败处理。
-- [安装与使用](softrouter/README.md)：配置格式、安装、状态、停止和卸载。
-- [DNS 与代理](softrouter/docs/dns-and-proxy.md)：处理部分校园网站打不开。
-- [排障指南](softrouter/docs/troubleshooting.md)：区分上游、转发、解析和客户端问题。
-- [后续实现计划](softrouter/docs/roadmap.md)：明确区分现有能力与尚未实现的接口。
-
-## 仓库分区
-
-```text
-.
-├── README.md / AGENTS.md        项目与 AI 入口
-├── LICENSE / CONTRIBUTING.md   许可证与贡献说明
-├── SECURITY.md                安全报告说明
-├── PUBLISH_FILES.txt           发布文件白名单
-├── .github/                    CI 与问题模板
-└── softrouter/                 可发布的程序、文档与测试
-```
-
-可以直接将工作区根目录作为 Git 仓库。根目录其他本地文件默认被 `.gitignore` 排除；网络试验、备份、运行证据和个人配置不随仓库上传。历史经验整理到公开文档和合成测试中。
-
-发布前检查白名单及暂存内容，不能只依靠 `.gitignore`：
+In the macOS app, choose 「生成诊断报告」, or run from the repository:
 
 ```sh
-/bin/bash softrouter/tests/run.sh
-python3 softrouter/tools/check-publication.py --staged
+/bin/bash softrouter/diagnose.sh --days 3
 ```
 
-校验通过并提交后，可用下列命令从已提交的文件生成源码包，不遍历整个工作区：
+The report directory contains `report.md` for people and schema 1 `report.json` for tools. Reports stay local. This command requires no administrator privileges and does not change network settings; website requests require explicit URL options.
 
-```sh
-/bin/bash softrouter/tools/package.sh
-```
+Diagnostics distinguish current service evidence, historical Wi-Fi/DHCP events, collection gaps and unverified downstream access. A running process is not proof of continuous internet access. See the [diagnostic workflow](softrouter/docs/diagnostics.md) and [SoftRouter health skill](softrouter/skills/softrouter-health/SKILL.md).
 
-源码包输出到本地忽略的 `dist/`，包含提交编号及 SHA-256 校验文件。所有现有功能以源码和安装说明为准，不需要特定 AI 插件或 Hammerspoon。
+## Common questions
 
-许可证：[MIT](LICENSE)。
+### Is this a Wi-Fi-to-Ethernet bridge?
+
+SoftRouter implements routed IPv4 sharing with NAT, rather than a transparent Layer 2 bridge. The Ethernet link connects the computer to the downstream router’s WAN port.
+
+### Can it share 802.1X campus Wi-Fi?
+
+The computer must first connect and authenticate using the operating system. SoftRouter then shares that upstream connection. Authentication recovery and campus DNS behavior depend on the actual network; validate the intended sites from a downstream device.
+
+### Does sharing automatically use my VPN or system proxy?
+
+Traffic follows the selected backend and routing configuration. A host application’s HTTP/SOCKS proxy does not automatically apply to forwarded clients. See [DNS and proxy behavior](softrouter/docs/dns-and-proxy.md).
+
+### Are all platforms and routers verified?
+
+No. Dedicated macOS deployment evidence, generic-package tests and Windows/Linux offline tests have different scopes. Exact hardware, recovery and power limitations are documented in [compatibility](softrouter/docs/compatibility.md). Features marked as planned or unreleased are not part of the current download.
+
+## Documentation and contributions
+
+- [Configuration and gateway commands](softrouter/README.md)
+- [Platform differences](softrouter/docs/platforms.md)
+- [Troubleshooting](softrouter/docs/troubleshooting.md)
+- [Power and lid behavior](softrouter/docs/power-and-lid.md)
+- [Roadmap](softrouter/docs/roadmap.md)
+- [Contributing](CONTRIBUTING.md) and [platform test reports](https://github.com/AntimoOfficial/SoftRouter/issues/new?template=platform-test.md)
+- [Security reporting](SECURITY.md) and [privacy](softrouter/docs/privacy.md)
+
+Reproducible reports with operating-system, adapter and real downstream test results are useful at this experimental stage. Keep credentials and private operational data out of public issues. Public release inputs are explicitly listed in `PUBLISH_FILES.txt`.
+
+[MIT license](LICENSE).

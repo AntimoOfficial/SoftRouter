@@ -1,5 +1,7 @@
 # AI 部署手册
 
+[English guide](ai-setup.en.md)
+
 本文是 macOS PF 后端的部署手册。Windows/Linux 从 [跨平台入口](platforms.md) 进入对应平台 README，不能套用本文的接口编号、PF 或 launchd 命令。
 
 本手册使用当前已经存在的脚本。统一 inspect/plan/apply CLI、JSON 状态和自动升级属于 roadmap，不能作为已实现功能调用。开始前阅读仓库根目录 AGENTS.md、本文、compatibility.md 和本目录上一级 README.md。

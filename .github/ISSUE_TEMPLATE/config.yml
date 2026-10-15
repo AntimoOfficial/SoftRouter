@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation and AI setup
+    url: https://github.com/AntimoOfficial/SoftRouter#readme
+    about: Start with the English overview, downloads and platform-specific guides.
+  - name: 中文安装与使用说明
+    url: https://github.com/AntimoOfficial/SoftRouter/blob/main/README.zh-CN.md
+    about: 中文项目说明、下载入口与本机 AI 部署流程。

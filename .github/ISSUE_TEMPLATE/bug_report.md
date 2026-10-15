@@ -9,7 +9,9 @@ assignees: ''
 ## Environment
 
 - Project version / commit:
-- macOS version and chip family:
+- Operating system and version:
+- CPU architecture / chip family:
+- Backend: macOS PF / Windows ICS / Linux NetworkManager
 - Ethernet adapter and router model:
 - Fresh generic installation or a different deployment:
 

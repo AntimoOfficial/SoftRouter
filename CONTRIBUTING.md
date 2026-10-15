@@ -2,6 +2,8 @@
 
 The project provides an experimental macOS IPv4 gateway and separate Windows ICS / Linux NetworkManager community test editions. Changes should state the concrete failure, expected behavior, and evidence used to validate the fix.
 
+Start with the [project overview](README.md), [中文说明](README.zh-CN.md) and [English AI setup guide](softrouter/docs/ai-setup.en.md). Use a [bug report](https://github.com/AntimoOfficial/SoftRouter/issues/new?template=bug_report.md), [feature request](https://github.com/AntimoOfficial/SoftRouter/issues/new?template=feature_request.md) or [platform test report](https://github.com/AntimoOfficial/SoftRouter/issues/new?template=platform-test.md) to keep the context and validation clear. Reports in English or Chinese are welcome.
+
 ## Local checks
 
 ```sh

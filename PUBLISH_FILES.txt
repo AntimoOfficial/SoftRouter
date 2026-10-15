@@ -1,5 +1,7 @@
 # Exact public source set. Review additions before staging.
 .github/ISSUE_TEMPLATE/bug_report.md
+.github/ISSUE_TEMPLATE/config.yml
+.github/ISSUE_TEMPLATE/feature_request.md
 .github/ISSUE_TEMPLATE/platform-test.md
 .github/workflows/tests.yml
 .gitignore
@@ -8,6 +10,7 @@ CONTRIBUTING.md
 LICENSE
 PUBLISH_FILES.txt
 README.md
+README.zh-CN.md
 SECURITY.md
 softrouter/.gitignore
 softrouter/CHANGELOG.md
@@ -20,6 +23,7 @@ softrouter/diagnostics/lib.sh
 softrouter/diagnostics/render.awk
 softrouter/docs/README.en.md
 softrouter/docs/ai-setup.md
+softrouter/docs/ai-setup.en.md
 softrouter/docs/compatibility.md
 softrouter/docs/design.md
 softrouter/docs/desktop-installer.md

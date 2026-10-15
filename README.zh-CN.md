@@ -1,0 +1,90 @@
+# SoftRouter
+
+<img src='softrouter/macos/assets/SoftRouterIcon.png' width='88' alt='SoftRouter icon'>
+
+用已有电脑把 Wi-Fi 分享给有线路由器，把部署交给你的 AI。
+
+SoftRouter 是实验性的 Wi-Fi 转有线软路由，面向校园网共享、企业 Wi-Fi 与本机 AI 辅助部署；macOS 使用 PF 与 IPv4 NAT，Windows ICS 和 Linux NetworkManager 提供独立社区测试版。
+
+[下载软件](https://github.com/AntimoOfficial/SoftRouter/releases/latest) · [English](README.md) · [社区测试反馈](https://github.com/AntimoOfficial/SoftRouter/issues/new?template=platform-test.md)
+
+```text
+校园 / 企业 Wi-Fi → 电脑完成认证与共享 → 路由器 WAN → LAN / Wi-Fi 设备
+```
+
+| 平台 | 下载与安装 | 当前实现和证据 |
+|---|---|---|
+| macOS 14+ | `.pkg`，双击安装应用 | PF 与 launchd；已有专用部署实测，通用安装仍待验收 |
+| Windows 10/11 | `windows-test.zip`，解压后双击 `Install.cmd` | 原生 ICS 图形助手；首批测试版，未做真实联网验收 |
+| Linux 桌面 | `linux-test_all.deb` 或 `linux-test.tar.gz` | NetworkManager 共享与图形助手；首批测试版，未做真实联网验收 |
+
+三端均先安装应用，再由用户选择接口并启用共享。Windows/Linux 与 macOS 使用不同后端，配置文件不能混用。见 [跨平台入口](softrouter/docs/platforms.md)。
+
+SoftRouter 将保持唤醒的 Mac 作为 IPv4 网关：Mac 通过 Wi-Fi 连接上游，独立以太网接口连接路由器 WAN，下游设备使用路由器的 LAN 或 Wi-Fi。
+
+macOS 负责校园或企业 802.1X 认证，SoftRouter 负责有线转发与常驻管理。上游暂时断线时服务保持运行，上游恢复后客户端可以重新建立连接。
+
+部署时须在这台 Mac 上保留目标上游的自动加入，并关闭下游路由器 Wi-Fi 的自动加入，避免上游断线后误连自身下游。设置保留凭据，不必忘记网络；核对方法见 [AI 部署手册](softrouter/docs/ai-setup.md#2-生成本地配置和具体计划)。
+
+当前为 `0.1.0-alpha.6` 实验版本。离线检查不等于真实联网验收；专用部署的成功不能推广为所有系统和网卡均受支持。详见 [兼容性与验证范围](softrouter/docs/compatibility.md)。
+
+## 下载并双击安装
+
+[打开 Release 下载页](https://github.com/AntimoOfficial/SoftRouter/releases/latest)。Mac 下载 `.pkg` 后双击安装应用，再导入 AI 按部署指南生成的本机配置，通过系统授权安装网关。详见 [图形安装说明](softrouter/docs/desktop-installer.md)。Windows/Linux 使用表格中的独立入口。
+
+安装包支持 macOS 14+ 的 Apple Silicon 与 Intel，当前未使用 Developer ID 签名或 Apple 公证，首次打开可能被 macOS 拦截。包只安装应用，网络转发需在应用内明确启用；已有部署不会自动迁移。
+
+## 网络巡检
+
+应用内点击「生成诊断报告」，或运行 `/bin/bash softrouter/diagnose.sh --days 3`，生成本地 `report.md`（供人阅读）和 `report.json`（schema 1，供 AI 解析）。无需管理员权限，不改变网络；可选比较指定公开网站的主机直连与本机代理路径。
+
+人工巡检还包括真实下游验收，以及 GitHub 的 Stars、访问与克隆统计、Issues 和社区反馈。完整流程见 [巡检 SOP](softrouter/docs/diagnostics.md) 与 [AI Skill](softrouter/skills/softrouter-health/SKILL.md)。
+
+`0.1.0-alpha.4` 增加应用图标、界面改进，以及可选 `--expected-ssid` 和图形界面的期望 Wi-Fi 字段。该诊断用于发现当前上游网络错配，不锁定网络或自动切网；自动加入仍需在系统设置中确认。
+
+## 交给 AI 配置
+
+把本仓库地址和下面这段话交给能操作本机终端的 AI：
+
+> 请读取仓库的 README.md、AGENTS.md 和 softrouter/docs/ai-setup.md，帮助我把这台 Mac 配置为 Wi-Fi 上游、有线路由器下游的共享网关。先只读检查环境，形成具体配置与恢复方案，再完成安装和真实下游验收。需要我接线、输入密码或提供权限时说明具体操作。
+
+Windows/Linux 将上述 Mac 改为本机平台，并先让 AI 读取 `softrouter/docs/platforms.md` 和对应平台 README；不要在这两端执行 macOS 的 PF 脚本。
+
+只有聊天能力的 AI 可以指导命令，不能自行配置电脑。管理员认证、校园认证和接线可能需要用户参与。没有浏览器控制能力或路由器管理会话时，由用户按 AI 生成的 WAN 参数表填写。
+
+- [AI 部署手册](softrouter/docs/ai-setup.md)：判断顺序、现有命令、失败处理。
+- [安装与使用](softrouter/README.md)：配置格式、安装、状态、停止和卸载。
+- [DNS 与代理](softrouter/docs/dns-and-proxy.md)：处理部分校园网站打不开。
+- [排障指南](softrouter/docs/troubleshooting.md)：区分上游、转发、解析和客户端问题。
+- [后续实现计划](softrouter/docs/roadmap.md)：明确区分现有能力与尚未实现的接口。
+
+## 仓库分区
+
+```text
+.
+├── README.md / AGENTS.md        项目与 AI 入口
+├── LICENSE / CONTRIBUTING.md   许可证与贡献说明
+├── SECURITY.md                安全报告说明
+├── PUBLISH_FILES.txt           发布文件白名单
+├── .github/                    CI 与问题模板
+└── softrouter/                 可发布的程序、文档与测试
+```
+
+可以直接将工作区根目录作为 Git 仓库。根目录其他本地文件默认被 `.gitignore` 排除；网络试验、备份、运行证据和个人配置不随仓库上传。历史经验整理到公开文档和合成测试中。
+
+发布前检查白名单及暂存内容，不能只依靠 `.gitignore`：
+
+```sh
+/bin/bash softrouter/tests/run.sh
+python3 softrouter/tools/check-publication.py --staged
+```
+
+校验通过并提交后，可用下列命令从已提交的文件生成源码包，不遍历整个工作区：
+
+```sh
+/bin/bash softrouter/tools/package.sh
+```
+
+源码包输出到本地忽略的 `dist/`，包含提交编号及 SHA-256 校验文件。所有现有功能以源码和安装说明为准，不需要特定 AI 插件或 Hammerspoon。
+
+许可证：[MIT](LICENSE)。

@@ -18,7 +18,7 @@ ICON_PROVENANCE_SHA256 = frozenset({
 })
 
 ROOT_FILES = {
-    '.gitignore', 'README.md', 'AGENTS.md', 'LICENSE', 'CONTRIBUTING.md',
+    '.gitignore', 'README.md', 'README.zh-CN.md', 'AGENTS.md', 'LICENSE', 'CONTRIBUTING.md',
     'SECURITY.md', 'PUBLISH_FILES.txt',
 }
 FORBIDDEN = (
