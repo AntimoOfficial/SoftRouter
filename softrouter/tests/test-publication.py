@@ -42,7 +42,7 @@ class PublicationTests(unittest.TestCase):
     def test_chinese_readme_is_an_exact_public_root_entry(self):
         with (self.root / 'PUBLISH_FILES.txt').open('a') as stream:
             stream.write('README.zh-CN.md\n')
-        (self.root / 'README.zh-CN.md').write_text('中文项目说明\n')
+        (self.root / 'README.zh-CN.md').write_text('中文项目说明\n', encoding='utf-8')
         self.assertEqual(publication.validate(self.root, 'worktree'), 3)
         with self.assertRaises(ValueError):
             publication.check_path('README.private.md')
